@@ -329,6 +329,22 @@ function sourceFinder(db: Database.Database, p: SearchParams): (from: { x: numbe
     .all(p.power) as { id64: number; name: string; x: number; y: number; z: number; cp: string; ps: string; pw: string | null }[];
   const mining = miningFilter(db, p, true); // a place to mine must have something to mine
 
+  // What there is to mine in each of your systems does not depend on where you sell, so it is worked out once for each.
+  const mined = new Map<number, Omit<MiningSource, "distance"> | null>();
+  const minedAt = (s: (typeof yours)[number]) => {
+    if (!mined.has(s.id64)) {
+      const row: ResultRow = {
+        id64: s.id64, name: s.name, distance: 0, controllingPower: s.cp, powerState: s.ps, contested: false, powers: orderPowers(s.pw, s.cp), factionState: null,
+        stations: [], bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
+      };
+      mined.set(
+        s.id64,
+        mining(row) ? { id64: row.id64, name: row.name, powerState: row.powerState, powers: row.powers, bodies: row.bodies, miningBodies: row.miningBodies, unknownBodies: row.unknownBodies, rings: row.rings } : null,
+      );
+    }
+    return mined.get(s.id64)!;
+  };
+
   return (from) => {
     const near = yours
       .map((s) => ({ s, d: Math.hypot(s.x - from.x, s.y - from.y, s.z - from.z) }))
@@ -338,12 +354,8 @@ function sourceFinder(db: Database.Database, p: SearchParams): (from: { x: numbe
     const found: MiningSource[] = [];
     for (const { s, d } of near) {
       if (found.length >= MAX_SOURCES) break;
-      const row: ResultRow = {
-        id64: s.id64, name: s.name, distance: d, controllingPower: s.cp, powerState: s.ps, contested: false, powers: orderPowers(s.pw, s.cp), factionState: null,
-        stations: [], bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
-      };
-      if (!mining(row)) continue;
-      found.push({ id64: row.id64, name: row.name, distance: d, powerState: row.powerState, powers: row.powers, bodies: row.bodies, miningBodies: row.miningBodies, unknownBodies: row.unknownBodies, rings: row.rings });
+      const here = minedAt(s);
+      if (here) found.push({ ...here, distance: d });
     }
     return found;
   };
@@ -373,8 +385,10 @@ function miningFilter(db: Database.Database, p: SearchParams, requireMining: boo
         const located = r.hotspots
           .filter((h) => !isRingMethod(p.method) || yieldsFrom(p.method, h.material, r.type)) // the technique can extract it from this ring
           .filter((h) => !wantMaterial || p.material.includes(h.material));
-        // A wanted material with no hotspots is somewhere in any ring of a type the technique can extract it from.
-        const unlocated = p.material.filter((m) => !hasHotspots(m) && yieldsFrom(technique, m, r.type)).map((m) => ({ material: m, count: null }));
+        // A wanted material can be in any ring of a type the technique can extract it from, not only at a hotspot: a ring with no
+        // recorded hotspot for it is listed without a count.
+        const found = new Set(located.map((h) => h.material));
+        const unlocated = p.material.filter((m) => !found.has(m) && yieldsFrom(technique, m, r.type)).map((m) => ({ material: m, count: null }));
         return { ...r, hotspots: [...located, ...unlocated] };
       })
       .filter((r) => r.hotspots.length > 0);

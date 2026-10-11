@@ -196,6 +196,15 @@ describe("ring methods", () => {
     expect(r[0].bodies).toEqual([]); // ring methods don't list planets
   });
 
+  it("a hotspot material is also found, without a count, in other rings of a type core mining can take it from", () => {
+    const [alpha] = search({ ...base, method: "core", material: ["Monazite"] }).rows;
+    const byRing = Object.fromEntries(alpha.rings.map((r) => [r.name, r.hotspots]));
+    expect(byRing["Alpha 1 A Ring"]).toEqual([{ material: "Monazite", count: 2 }]); // Rocky, with the hotspot
+    expect(byRing["Alpha 1 C Ring"]).toEqual([{ material: "Monazite", count: null }]); // Metallic, with other hotspots but none for it
+    expect(byRing["Alpha 1 D Ring"]).toEqual([{ material: "Monazite", count: null }]); // Metal Rich, with no hotspots at all
+    expect(byRing["Alpha 1 B Ring"]).toBeUndefined(); // Icy: core mining cannot take Monazite from it
+  });
+
   it("laser and sub-surface mining find only what the technique can extract in that ring type", () => {
     // Monazite and Void Opal are core-only; Painite in a Metallic ring is also minable by laser.
     expect(ringsOf({ method: "laser" })).toEqual(["Alpha 1 C Ring"]);

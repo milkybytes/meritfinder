@@ -30,7 +30,7 @@ export function MiningTargets({ rings, bodies, systemName, tree = false }: { rin
             <span
               key={h.material}
               className={h.count == null ? "text-muted" : "font-medium text-good"}
-              title={h.count == null ? "No hotspot: this material is found in the rocks of any ring of this type" : undefined}
+              title={h.count == null ? "No hotspot recorded: this material can be found in any ring of this type" : undefined}
             >
               {h.material}
               {h.count != null && ` ×${h.count}`}

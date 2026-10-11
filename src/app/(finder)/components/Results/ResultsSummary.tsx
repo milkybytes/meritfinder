@@ -10,7 +10,7 @@ export function ResultsSummary({ count, truncated, partial, refName, params }: {
           {truncated ? "+" : ""}
         </strong>{" "}
         systems within <span className="font-mono tabular-nums">{params.range}</span> ly of {refName}
-        {truncated && <span className="text-muted"> (showing the first {params.limit})</span>}
+        {truncated && <span className="text-muted ml-2">(showing the first {params.limit})</span>}
       </p>
       {partial && (
         <p className="mt-2 text-sm text-warn">
