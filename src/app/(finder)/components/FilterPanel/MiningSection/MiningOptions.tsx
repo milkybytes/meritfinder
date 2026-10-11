@@ -40,7 +40,7 @@ export function MiningOptions({ params, info }: SectionProps) {
               method === "planetary"
                 ? "Material to mine (planet types that can hold it)"
                 : ring
-                  ? "Material to mine (rings with hotspots)"
+                  ? "Material to mine"
                   : "Material to mine"
             }
             options={options}
