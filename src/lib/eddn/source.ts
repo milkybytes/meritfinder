@@ -7,6 +7,8 @@ export async function* relayMessages(url = EDDN_RELAY, signal?: AbortSignal): As
   const { Subscriber } = await import("zeromq"); // loaded here so the rest of the app never needs the native module
   const socket = new Subscriber();
   socket.receiveTimeout = SILENCE_MS;
+  socket.reconnectInterval = 5_000; // ZeroMQ's default is to retry a lost connection every 0.1 s; back off to a minute so a relay that is down is not hammered
+  socket.reconnectMaxInterval = 60_000;
   socket.connect(url);
   socket.subscribe(); // everything
   const close = () => socket.close();

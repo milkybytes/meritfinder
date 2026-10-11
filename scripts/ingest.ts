@@ -8,7 +8,7 @@ import { Readable } from "node:stream";
 import zlib from "node:zlib";
 
 import { getDbPath, openWritable } from "../src/lib/db/db";
-import { resumableDownload } from "../src/lib/ingest/download";
+import { resumableDownload, USER_AGENT } from "../src/lib/ingest/download";
 import { storeCommoditySymbols, storeCommodities } from "../src/lib/ingest/finalize";
 import { createIngester } from "../src/lib/ingest/ingest-system";
 
@@ -27,7 +27,7 @@ async function openSource(): Promise<{ stream: Readable; version: string }> {
     const raw = fs.createReadStream(file);
     return { stream: file.endsWith(".gz") ? raw.pipe(zlib.createGunzip()) : raw, version: `file:${path.basename(file)}` };
   }
-  const head = await fetch(DUMP_URL, { method: "HEAD" });
+  const head = await fetch(DUMP_URL, { method: "HEAD", headers: { "User-Agent": USER_AGENT } });
   const version = `${head.headers.get("etag")}|${head.headers.get("last-modified")}`;
   const prev = (() => {
     try {

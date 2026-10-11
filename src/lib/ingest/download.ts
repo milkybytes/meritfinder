@@ -3,6 +3,9 @@ import { PassThrough, Readable } from "node:stream";
 
 class DumpChangedError extends Error {}
 
+// Says who is asking, so the dump's host can tell this from a scraper.
+export const USER_AGENT = "meritfinder/0.1 (personal Elite Dangerous Powerplay tool; downloads the dump by hand, rarely)";
+
 // Streams `url` as one byte stream, resuming with Range requests if the connection drops. If the file changes on the server mid-download (Spansh
 // regenerates dumps hourly) the resume fails with an error instead of splicing two files.
 export function resumableDownload(url: string, opts: { retries?: number; retryDelayMs?: number; log?: (m: string) => void } = {}): Readable {
@@ -15,7 +18,7 @@ export function resumableDownload(url: string, opts: { retries?: number; retryDe
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = { "User-Agent": USER_AGENT };
         if (received > 0) {
           headers.Range = `bytes=${received}-`;
           if (etag) headers["If-Range"] = etag;
