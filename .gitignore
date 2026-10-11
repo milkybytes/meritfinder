@@ -1,0 +1,26 @@
+node_modules/
+/data/
+*.sqlite
+*.gz
+.env*
+
+# next
+.next/
+.next-prod/
+next-env.d.ts
+*.tsbuildinfo
+
+# test coverage reports
+/coverage/
+
+# editors, OS and logs
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# agent instruction files (written by tools, not part of the app)
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+.claude/
