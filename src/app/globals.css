@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* Look: cockpit readout. Dark, tinted by a Powerplay power's colour. The theme picker (and the
+   pre-paint script in layout.tsx) set --hue and --accent on <html>; everything else is derived
+   here, so a theme change is a client-side variable swap with no server round trip. Angular
+   chrome, corner-bracket panels, diamond markers, mono figures. */
+:root {
+  --hue: 41;
+  --accent: rgb(240 175 40);
+  --background: hsl(var(--hue) 24% 4.5%);
+  --foreground: hsl(var(--hue) 20% 93%);
+  --surface: hsl(var(--hue) 20% 8%);
+  --surface-2: hsl(var(--hue) 16% 12%);
+  --line: hsl(var(--hue) 14% 20%);
+  --muted: hsl(var(--hue) 10% 62%);
+  --good: #4cc38a;
+  --warn: #e0a24a;
+  color-scheme: dark;
+}
+
+@theme {
+  --animate-breathe: breathe 2s ease-in-out infinite; /* the live-updates light while updates are arriving */
+  @keyframes breathe {
+    50% {
+      opacity: 0.35;
+    }
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  /* One glow from the top edge in the theme colour, over a sparse starfield. The starfield is three
+     tiles whose sizes share no factors (211, 307, 419px) so the combined pattern only repeats every
+     ~27 million px: no visible tiling. Fixed + no-repeat glow: <html> is as tall as the viewport,
+     so a repeating background would tile the glow down the page. */
+  background-attachment: fixed;
+  background-repeat: no-repeat, repeat, repeat, repeat, repeat, repeat, repeat;
+  background-size: 100% 100%, 211px 211px, 211px 211px, 307px 307px, 307px 307px, 419px 419px, 419px 419px;
+  background-image:
+    radial-gradient(ellipse 90% 45% at 50% -5%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 40px 60px, color-mix(in srgb, var(--foreground) 38%, transparent), transparent),
+    radial-gradient(1px 1px at 150px 170px, color-mix(in srgb, var(--foreground) 22%, transparent), transparent),
+    radial-gradient(1px 1px at 90px 20px, color-mix(in srgb, var(--foreground) 30%, transparent), transparent),
+    radial-gradient(1px 1px at 230px 250px, color-mix(in srgb, var(--foreground) 42%, transparent), transparent),
+    radial-gradient(1px 1px at 310px 140px, color-mix(in srgb, var(--foreground) 26%, transparent), transparent),
+    radial-gradient(1px 1px at 60px 370px, color-mix(in srgb, var(--foreground) 34%, transparent), transparent);
+}
+
+/* Anything that can be clicked shows it. Text fields keep their text cursor. */
+button:not(:disabled),
+summary,
+a[href],
+[role="button"],
+[role="option"],
+input[type="radio"],
+input[type="checkbox"],
+input[type="range"] {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}

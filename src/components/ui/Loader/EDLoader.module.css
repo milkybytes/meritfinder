@@ -1,0 +1,38 @@
+/* The outer ring and the inner hexagon pulse to different depths, in a wave set by each triangle's animation-delay. */
+.outer {
+  animation: outer 1000ms linear infinite;
+}
+.inner {
+  animation: inner 1000ms linear infinite;
+}
+
+@keyframes outer {
+  0% {
+    opacity: 0.3;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+@keyframes inner {
+  0% {
+    opacity: 0.4;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+/* No motion: each triangle holds its place in the wave as a static opacity, which still reads as a ring. */
+@media (prefers-reduced-motion: reduce) {
+  .outer,
+  .inner {
+    animation: none;
+  }
+}
