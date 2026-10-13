@@ -44,6 +44,16 @@ const hotspots = (over: Partial<HotspotsUpdate> = {}): HotspotsUpdate => ({
 });
 const rows = (sql: string, ...args: unknown[]) => db.prepare(sql).all(...args) as Record<string, unknown>[];
 
+describe("markets: a name made from a symbol", () => {
+  it("is stored with the market but does not join the commodity menu, so the real name replaces it cleanly", () => {
+    applyUpdates(db, [market({ commodities: [{ name: "Monazite", price: 1, demand: 1 }, { name: "Newthing", price: 5, demand: 2, provisional: true }, { name: "Brandnew", price: 6, demand: 2 }] })]);
+    expect(rows("SELECT commodity FROM market WHERE station_id = 20 ORDER BY commodity").map((r) => r.commodity)).toEqual(["Brandnew", "Monazite", "Newthing"]);
+    const list = JSON.parse((rows("SELECT value FROM meta WHERE key = 'commodities'")[0] as { value: string }).value) as string[];
+    expect(list).toContain("Brandnew");
+    expect(list).not.toContain("Newthing");
+  });
+});
+
 describe("markets", () => {
   it("replaces a station's market, with its new best price and time", () => {
     const stats = applyUpdates(db, [market({ commodities: [{ name: "Monazite", price: 800_000, demand: 50 }, { name: "Platinum", price: 10, demand: 1 }] })]);

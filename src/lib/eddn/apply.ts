@@ -116,7 +116,7 @@ export function applyUpdates(db: Database.Database, updates: EddnUpdate[]): Appl
           clearMarket.run(u.marketId);
           for (const c of u.commodities) {
             addMarket.run(u.marketId, c.name, c.demand, c.price);
-            newCommodities.add(c.name);
+            if (!c.provisional) newCommodities.add(c.name); // a made-up name must not join the menu: the real one will replace it
           }
           touchStation.run(u.at, Math.max(0, ...u.commodities.map((c) => c.price)), u.marketId);
           stats.markets++;

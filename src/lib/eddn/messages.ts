@@ -2,6 +2,7 @@ import { classifyBody } from "@/data/body-resources";
 import { canonicalRingMaterial } from "@/data/ring-materials";
 import { MAX_MARKET_AGE_DAYS } from "@/data/retention";
 
+import { provisionalName } from "./commodity-names";
 import { METRES_PER_SECOND_SQUARED_PER_G, planetSubtype, RESERVE_LEVELS, RING_CLASSES, stationType, volcanismName } from "./names";
 
 // EDDN relays what players' game clients see. Anyone can publish to it, so every message is untrusted: this turns one into a small validated update
@@ -27,7 +28,9 @@ export interface MarketUpdate {
   kind: "market";
   marketId: number;
   at: string; // ISO time the market was seen
-  commodities: { name: string; price: number; demand: number }[]; // only what is bought: demand and a price
+  // Only what is bought: demand and a price. `provisional`: a name made from a symbol we have no name for (a commodity newer than the dump).
+  commodities: { name: string; price: number; demand: number; provisional?: true }[];
+  unknown?: string[]; // the symbols (lower case) behind the provisional names, so the listener can go and look for their names
 }
 
 export interface SystemUpdate {
@@ -143,20 +146,33 @@ function parseMarket(m: Obj, now: number, symbols: ReadonlyMap<string, string>):
 
   // Without the names the market would read as "buys nothing" and replace a real one.
   if (symbols.size === 0) return { skip: "no-names" };
-  const bought = new Map<string, { name: string; price: number; demand: number }>();
+  const bought = new Map<string, { name: string; price: number; demand: number; provisional?: true }>();
+  const unknown = new Set<string>();
   let unnamed = 0;
   for (const c of m.commodities) {
     if (!isObj(c) || typeof c.name !== "string") continue;
     const price = int(c.sellPrice, 0, MAX_PRICE);
     const demand = int(c.demand, 0, MAX_DEMAND);
     if (!price || !demand) continue; // 0 or missing: nobody is buying
-    const name = symbols.get(c.name.toLowerCase());
-    if (name) bought.set(name, { name, price, demand });
-    else unnamed++;
+    const symbol = c.name.toLowerCase();
+    const name = symbols.get(symbol);
+    if (name) {
+      bought.set(name, { name, price, demand });
+    } else {
+      // A commodity newer than our names: show it under a name made from the symbol rather than lose the price. The real name replaces it
+      // once it is known (see commodity-names.ts).
+      const made = provisionalName(c.name);
+      if (!made || bought.has(made)) {
+        unnamed++;
+        continue;
+      }
+      bought.set(made, { name: made, price, demand, provisional: true });
+      unknown.add(symbol);
+    }
   }
-  // Buying only things we have no name for (a commodity newer than the dump): not the same as buying nothing.
+  // Buying only things that cannot be named at all (not a symbol): not the same as buying nothing.
   if (bought.size === 0 && unnamed > 0) return { skip: "no-names" };
-  return { update: { kind: "market", marketId, at: time.at, commodities: [...bought.values()] } };
+  return { update: { kind: "market", marketId, at: time.at, commodities: [...bought.values()], ...(unknown.size ? { unknown: [...unknown] } : {}) } };
 }
 
 function parseSystem(m: Obj, now: number): ParseResult {

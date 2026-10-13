@@ -11,6 +11,7 @@ import path from "node:path";
 import { getDbPath } from "@/lib/db/db";
 import { migrate, SCHEMA_VERSION, schemaVersion } from "@/lib/db/migrations";
 import { pruneStaleMarkets, repairLiveData } from "@/lib/eddn/apply";
+import { NAMES_USER_AGENT, refreshCommodityNames } from "@/lib/eddn/commodity-names";
 import { MAX_MARKET_AGE_DAYS } from "@/data/retention";
 import { runListener, type ListenerStats } from "@/lib/eddn/listener";
 import { EDDN_RELAY, relayMessages } from "@/lib/eddn/source";
@@ -133,6 +134,44 @@ async function main() {
     }
   }, 10 * 60_000);
   refresh.unref();
+
+  // A symbol we cannot name: look for its name in the community table, at most once a week (the limit is kept in the database, so it holds
+  // across restarts). Whatever happens is logged and recorded where `npm run db:stats` shows it.
+  const seen = new Set<string>();
+  let nextLook = 0;
+  let looking = false;
+  const lookForNames = (unknown: string[]) => {
+    const fresh = unknown.filter((s) => !seen.has(s) && seen.size < 500);
+    fresh.forEach((s) => seen.add(s));
+    if (fresh.length) console.log(`No name for commodity ${fresh.join(", ")}: shown under a made-up name until one is found.`);
+    if (dryRun || looking || Date.now() < nextLook) return;
+    nextLook = Date.now() + 3600_000; // do not even read the database more than hourly
+    looking = true;
+    refreshCommodityNames({
+      withDb: (fn) => {
+        const db = new Database(getDbPath(), { fileMustExist: true });
+        try {
+          return fn(db);
+        } finally {
+          db.close();
+        }
+      },
+      userAgent: NAMES_USER_AGENT,
+    })
+      .then((done) => {
+        if (!done.ran) return;
+        console.log(`Commodity names: ${done.result}`);
+        if (done.added) {
+          const names = loadSymbols();
+          symbols.clear();
+          names.forEach((v, k) => symbols.set(k, v));
+        }
+      })
+      .catch((e) => console.log(`Commodity names: could not look (${(e as Error).message}); will try again at the next unknown one.`))
+      .finally(() => {
+        looking = false;
+      });
+  };
   console.log(`${dryRun ? "Dry run: reading" : "Updating " + getDbPath() + " from"} ${EDDN_RELAY}. Ctrl+C to stop.`);
 
   setClaim(true);
@@ -166,6 +205,7 @@ async function main() {
       stats = await runListener({
         source: relayMessages(EDDN_RELAY, controller.signal),
         symbols,
+        onUnknown: lookForNames,
         openDb: dryRun ? undefined : () => new Database(getDbPath(), { fileMustExist: true }),
         log: (l) => console.log(l),
         report: (s) => console.log(summary(s)),

@@ -31,7 +31,7 @@ describe("market messages", () => {
     expect(update(marketMessage({ commodities: [] }))).toMatchObject({ kind: "market", commodities: [] });
   });
 
-  it("ignores commodities it does not know, and values that make no sense", () => {
+  it("ignores values that make no sense, and names a commodity it does not know provisionally", () => {
     const u = update(
       marketMessage({
         commodities: [
@@ -46,7 +46,10 @@ describe("market messages", () => {
         ],
       }),
     );
-    expect(u).toMatchObject({ commodities: [{ name: "Indite", price: 1234, demand: 9 }] });
+    expect(u).toMatchObject({
+      commodities: [{ name: "Notarealthing", price: 100, demand: 5, provisional: true }, { name: "Indite", price: 1234, demand: 9 }],
+      unknown: ["notarealthing"],
+    });
   });
 
 });
@@ -56,8 +59,15 @@ describe("a market that cannot be named", () => {
     expect(parseMessage(marketMessage(), NOW, new Map())).toEqual({ skip: "no-names" });
   });
 
-  it("is not read when everything it buys is unknown, which is not the same as buying nothing", () => {
-    expect(skipped(marketMessage({ commodities: [{ name: "notarealthing", sellPrice: 100, demand: 5 }] }))).toBe("no-names");
+  it("is not read when everything it buys has no usable name at all, which is not the same as buying nothing", () => {
+    expect(skipped(marketMessage({ commodities: [{ name: "not a symbol!", sellPrice: 100, demand: 5 }] }))).toBe("no-names");
+  });
+
+  it("is read when it buys only a commodity newer than our names, under a name made from the symbol", () => {
+    expect(update(marketMessage({ commodities: [{ name: "newthing", sellPrice: 100, demand: 5 }] }))).toMatchObject({
+      commodities: [{ name: "Newthing", price: 100, demand: 5, provisional: true }],
+      unknown: ["newthing"],
+    });
   });
 });
 

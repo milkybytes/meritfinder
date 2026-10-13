@@ -1,5 +1,5 @@
-// The database tools: npm run db:stats | db:check | db:show -- <system> | db:sql -- <select> | db:migrate [-- --backup --dry-run]
-// All but migrate open the file read-only, so they are safe while the app and the listener run.
+// The database tools: npm run db:stats | db:check | db:show -- <system> | db:sql -- <select> | db:migrate [-- --backup --dry-run] | db:names
+// All but migrate and names open the file read-only, so they are safe while the app and the listener run.
 import fs from "node:fs";
 
 import Database from "better-sqlite3";
@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import { getDbPath } from "@/lib/db/db";
 import { dbStats, runQuery, showSystem } from "@/lib/db/inspect";
 import { MIGRATIONS, migrate, SCHEMA_VERSION, schemaVersion } from "@/lib/db/migrations";
+import { NAMES_USER_AGENT, refreshCommodityNames } from "@/lib/eddn/commodity-names";
 
 const [command, ...rest] = process.argv.slice(2);
 const flag = (n: string) => rest.includes(`--${n}`);
@@ -38,6 +39,7 @@ switch (command) {
     console.log(`built ${s.builtAt ?? "?"} from dump ${s.dumpVersion ?? "?"}`);
     console.log("rows:", Object.entries(s.rows).map(([t, c]) => `${t} ${n(c)}`).join(", "));
     console.log(`${n(s.commodities)} commodities; ${n(s.ringsWithoutHotspots)} rings without hotspots${s.ringsWithoutHotspots === 0 ? " (a database built before every ring was stored has none: re-ingest)" : ""}`);
+    console.log(`commodity names: ${s.commodityNames.checkedAt ? `last looked for ${s.commodityNames.checkedAt}, ${s.commodityNames.result}` : "never looked for (they come from the dump; the listener looks when it sees one it cannot name)"}`);
     console.log("systems by Powerplay state:");
     console.table(Object.fromEntries(s.powerStates.map((p) => [p.state, p.systems])));
     console.log(`market updates, newest ${s.newestMarket ?? "-"}, oldest ${s.oldestMarket ?? "-"}; stations updated within:`);
@@ -110,9 +112,31 @@ switch (command) {
     }
     break;
   }
+  case "names": {
+    // Looks for the names of commodities newer than the dump now, ignoring the listener's once-a-week limit.
+    refreshCommodityNames({
+      withDb: (fn) => {
+        const db = open(false);
+        try {
+          return fn(db);
+        } finally {
+          db.close();
+        }
+      },
+      userAgent: NAMES_USER_AGENT,
+      force: true,
+    })
+      .then((done) => {
+        if (!done.ran) return;
+        console.log(done.result);
+        if (done.result.startsWith("FAILED")) process.exitCode = 1;
+      })
+      .catch((e) => fail(e instanceof Error ? e.message : String(e)));
+    break;
+  }
   case "check":
     void import("./check-db"); // runs the check (also `npm run db:check`); takes --full
     break;
   default:
-    fail("Usage: npm run db:stats | db:check | db:show -- <system> | db:sql -- <select> | db:migrate [-- --backup --dry-run]");
+    fail("Usage: npm run db:stats | db:check | db:show -- <system> | db:sql -- <select> | db:migrate [-- --backup --dry-run] | db:names");
 }

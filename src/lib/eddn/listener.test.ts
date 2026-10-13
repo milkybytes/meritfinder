@@ -44,6 +44,13 @@ describe("runListener", () => {
     expect(stationRow(20).best_price).toBe(700_000);
   });
 
+  it("says which symbols it had no name for, so their names can be looked for", async () => {
+    const unknown: string[][] = [];
+    const msg = marketMessage({ marketId: 3225348096, timestamp: FRESH(), commodities: [{ name: "newthing", sellPrice: 100, demand: 5 }] });
+    await runListener({ source: feed(msg), symbols: SYMBOLS, onUnknown: (s) => unknown.push(s), flushMs: 1_000_000 });
+    expect(unknown).toEqual([["newthing"]]);
+  });
+
   it("does not let a system message without Powerplay information replace one that has it", async () => {
     const jump = (over: object) => jumpToUnoccupiedSystem({ SystemAddress: 4999999999, timestamp: FRESH(), ...over });
     await runListener({

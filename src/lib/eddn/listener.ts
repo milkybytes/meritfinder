@@ -25,6 +25,7 @@ export interface ListenerOptions {
   maxBatch?: number; // ...or as soon as this many distinct updates are waiting
   report?: (stats: ListenerStats) => void; // called every reportMs with the running totals: a long-lived connection has nothing else to say
   reportMs?: number;
+  onUnknown?: (symbols: string[]) => void; // a market sold something we have no name for: say which, so its name can be looked for
   log?: (line: string) => void;
   signal?: AbortSignal;
 }
@@ -50,7 +51,7 @@ const keyOf = (u: EddnUpdate) => {
 // Reads the feed, keeps the newest update per market, system and body, and writes in batches. The database is opened only for each write, so the web
 // app and the ingest can use it in between. Returns when the source ends or the signal aborts, after a final write.
 export async function runListener(opts: ListenerOptions): Promise<ListenerStats> {
-  const { source, symbols, openDb, now = Date.now, flushMs = 10_000, heartbeatMs = 30_000, maxBatch = 500, report, reportMs = 600_000, log = () => {}, signal } = opts;
+  const { source, symbols, openDb, now = Date.now, flushMs = 10_000, heartbeatMs = 30_000, maxBatch = 500, report, reportMs = 600_000, onUnknown, log = () => {}, signal } = opts;
   const stats: ListenerStats = { received: 0, accepted: { market: 0, system: 0, signals: 0, station: 0, body: 0, hotspots: 0 }, skipped: {}, applied: emptyStats(), flushes: 0, flushErrors: 0, rejected: 0 };
   let waiting = new Map<string, EddnUpdate>();
 
@@ -141,6 +142,7 @@ export async function runListener(opts: ListenerOptions): Promise<ListenerStats>
         continue;
       }
       stats.accepted[parsed.update.kind]++;
+      if (parsed.update.kind === "market" && parsed.update.unknown) onUnknown?.(parsed.update.unknown);
       const key = keyOf(parsed.update);
       const prior = waiting.get(key);
       // the newest observation of the same thing wins; arrival order is not observation order (signal counts are timeless)
