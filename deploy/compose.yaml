@@ -1,0 +1,111 @@
+# meritfinder: the web app, the live EDDN listener, and Caddy in front for HTTPS. Run from this folder:
+#
+#   cp env.example .env       # then edit it: at least SITE_ADDRESS
+#   docker compose up -d --build
+#   docker compose run --rm ingest        # first time only: builds the database (about 1.5 hours)
+#
+# See README.md in this folder for everything else (updates, refreshing the data, backups).
+name: meritfinder
+
+x-app-env: &app-env
+  MERITFINDER_DB: /data/meritfinder.sqlite
+  MERITFINDER_TRUST_PROXY_HOPS: ${MERITFINDER_TRUST_PROXY_HOPS:-1}
+  MERITFINDER_HTTPS: ${MERITFINDER_HTTPS:-1}
+  MERITFINDER_RATE_LIMIT: ${MERITFINDER_RATE_LIMIT:-30}
+  MERITFINDER_RATE_LIMIT_GLOBAL: ${MERITFINDER_RATE_LIMIT_GLOBAL:-600}
+  MERITFINDER_RATE_LIMIT_SUGGEST: ${MERITFINDER_RATE_LIMIT_SUGGEST:-120}
+  MERITFINDER_SEARCH_BUDGET_MS: ${MERITFINDER_SEARCH_BUDGET_MS:-2000}
+  MERITFINDER_CACHE_TTL_SECONDS: ${MERITFINDER_CACHE_TTL_SECONDS:-300}
+  MERITFINDER_CDN_CACHE_SECONDS: ${MERITFINDER_CDN_CACHE_SECONDS:-0}
+
+x-hardening: &hardening
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" } # logs never fill the disk
+
+services:
+  web:
+    <<: *hardening
+    build: { context: .., dockerfile: deploy/Dockerfile, target: web }
+    image: meritfinder-web
+    environment: *app-env
+    volumes:
+      - data:/data # the app only ever reads, but it must be able to repair a write the listener was killed in the middle of (see lib/db/db.ts)
+    read_only: true
+    tmpfs: ["/tmp", "/app/.next/cache"]
+    mem_limit: 1g
+    expose: ["3000"] # reachable by Caddy, not published to the internet
+
+  eddn-listener:
+    <<: *hardening
+    build: { context: .., dockerfile: deploy/Dockerfile, target: worker }
+    image: meritfinder-worker
+    environment: *app-env
+    command: ["node_modules/.bin/tsx", "scripts/eddn-listener.ts"]
+    volumes:
+      - data:/data
+    read_only: true
+    tmpfs: ["/tmp"]
+    mem_limit: 512m
+    # Healthy while messages are being applied (the heartbeat is under 5 minutes old). Shown by `docker compose ps`; it does not restart anything.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - |
+          const D = require("better-sqlite3");
+          const db = new D(process.env.MERITFINDER_DB, { readonly: true, fileMustExist: true });
+          const row = db.prepare("SELECT value FROM meta WHERE key = 'eddn_heartbeat'").get();
+          process.exit(row && Date.now() - Date.parse(row.value) < 300000 ? 0 : 1);
+      interval: 60s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+  caddy:
+    <<: *hardening
+    image: caddy:2
+    depends_on:
+      web: { condition: service_healthy }
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # the certificates: keep it, or Caddy asks for new ones and can hit Let's Encrypt's limits
+      - caddy_config:/config
+    cap_add: [NET_BIND_SERVICE]
+
+  # Run on demand, not started with the rest: `docker compose run --rm ingest [--force]` (what follows the name is passed to the
+  # script, which is why this is an entrypoint, not a command). The `tools` profile keeps
+  # `docker compose up` from starting it.
+  ingest:
+    build: { context: .., dockerfile: deploy/Dockerfile, target: worker }
+    image: meritfinder-worker
+    profiles: ["tools"]
+    environment: *app-env
+    entrypoint: ["node_modules/.bin/tsx", "scripts/ingest.ts"]
+    volumes:
+      - data:/data
+
+  # `docker compose run --rm db stats`, `... db check`, `... db migrate`, `... db show "Sol"`
+  db:
+    build: { context: .., dockerfile: deploy/Dockerfile, target: worker }
+    image: meritfinder-worker
+    profiles: ["tools"]
+    environment: *app-env
+    entrypoint: ["node_modules/.bin/tsx", "scripts/db.ts"]
+    volumes:
+      - data:/data
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:

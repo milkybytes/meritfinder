@@ -1,0 +1,27 @@
+# Caddy terminates HTTPS (certificates from Let's Encrypt, renewed by itself), compresses, and passes requests to the app.
+# SITE_ADDRESS is your domain, e.g. meritfinder.example.com. It must point at this machine (DNS A/AAAA record) and ports
+# 80 and 443 must be open, or Caddy cannot get a certificate. The default, localhost, gives a local test certificate.
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	reverse_proxy web:3000 {
+		# Only send traffic to the app while it says it can serve searches.
+		health_uri /api/health
+		health_interval 15s
+	}
+
+	# Caddy sets X-Forwarded-For to the address it was called from. The app's rate limiting reads it
+	# (MERITFINDER_TRUST_PROXY_HOPS=1: one proxy, this one). If something else (Cloudflare, say) is in front of Caddy,
+	# tell Caddy to trust that proxy's header, or every visitor looks like that proxy:
+	#
+	#   servers {
+	#       trusted_proxies static <the proxy's address ranges>
+	#   }
+	#
+	# (in the global options block at the top of the file), and set MERITFINDER_TRUST_PROXY_HOPS=2.
+
+	header -Server
+	log {
+		output stdout
+	}
+}

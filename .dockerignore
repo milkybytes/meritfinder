@@ -1,0 +1,17 @@
+# Nothing here is needed to build the images, and the database must never end up inside one.
+/.git
+/.github
+/.next
+/node_modules
+/data
+/coverage
+/NOTES
+/assets
+/deploy
+*.sqlite
+*.sqlite.*
+*.gz
+.env
+.env.*
+*.tsbuildinfo
+npm-debug.log*
