@@ -41,7 +41,7 @@ const SYSTEMS: any[] = [
     id64: 2, name: "Alpha", coords: { x: 10, y: 0, z: 0 },
     controllingPower: "Aisling Duval", powerState: "Fortified",
     powers: ["Edmund Mahon", "Aisling Duval"], // controller deliberately not first
-    controllingFaction: { name: "Alpha Co", state: "Boom" },
+    controllingFaction: { name: "Alpha Co", state: "Boom", activeStates: [{ state: "Boom" }] },
     stations: [station(20, "Alpha Hub", { large: 1 }, 100, [c("Monazite", 1000, 500000), c("Gold", 500, 9000), c("Void Opal", 10, 100000)], 1, { controllingFactionState: "Boom" })],
     bodies: [
       {
@@ -66,7 +66,7 @@ const SYSTEMS: any[] = [
   {
     id64: 3, name: "Beta", coords: { x: 30, y: 0, z: 0 },
     controllingPower: "Edmund Mahon", powerState: "Exploited", powers: ["Edmund Mahon"],
-    controllingFaction: { name: "Beta Co", state: "Bust" },
+    controllingFaction: { name: "Beta Co", state: "Bust", activeStates: [{ state: "Bust" }] },
     stations: [station(30, "Beta Outpost", { medium: 1 }, 20, [c("Monazite", 5, 700000)], 40)],
     bodies: [],
   },

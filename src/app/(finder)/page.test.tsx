@@ -6,6 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { buildFixtureDb } from "@/test/galaxy";
 
 import { FilterPanel } from "./components/FilterPanel/FilterPanel";
+import { DatabaseProblem } from "./components/DatabaseNotice/DatabaseProblem";
 import Home from "./page";
 
 const { file, dir } = buildFixtureDb();
@@ -48,4 +49,21 @@ describe("the page", () => {
     expect(new Set(keys).size).toBe(keys.length); // Reset, Back, a restored or shared search: each is a different form
   });
 
+});
+
+describe("the page when the database can't be read", () => {
+  it("shows the database notice instead of failing", async () => {
+    const previous = process.env.MERITFINDER_DB;
+    const broken = file + ".broken";
+    fs.writeFileSync(broken, "not a database ".repeat(1000));
+    process.env.MERITFINDER_DB = broken;
+    try {
+      const tree = (await Home({ searchParams: Promise.resolve({}) })) as ReactElement<{ state: string }>;
+      expect(tree.type).toBe(DatabaseProblem);
+      expect(tree.props.state).toBe("unreadable");
+    } finally {
+      process.env.MERITFINDER_DB = previous;
+      fs.rmSync(broken, { force: true });
+    }
+  });
 });

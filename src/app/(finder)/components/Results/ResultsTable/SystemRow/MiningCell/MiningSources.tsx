@@ -39,9 +39,9 @@ export function MiningSources({ sources }: { sources: MiningSource[] }) {
 function Source({ source: s }: { source: MiningSource }) {
   return (
     <li className="py-3 first:pt-0 last:pb-0">
-      <div className="mb-1 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <div className="mb-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
         <span className="select-all text-base font-semibold">{s.name}</span>
-        <CopyButton text={s.name} label="Copy system name" />
+        <CopyButton text={s.name} label="Copy system name" className="self-center" />
         {s.powerState && <StateTag state={s.powerState} />}
         <span className="font-mono tabular-nums text-xs text-muted">{s.distance.toFixed(1)} ly away</span>
       </div>

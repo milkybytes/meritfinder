@@ -72,6 +72,7 @@ export const locationInFortifiedSystem = (over: Record<string, unknown> = {}) =>
     PowerplayStateReinforcement: 0,
     PowerplayStateUndermining: 1793,
     SystemFaction: { Name: "Stellanebula Project", FactionState: "Expansion" },
+    Factions: [{ Name: "Stellanebula Project", FactionState: "Expansion", ActiveStates: [{ State: "Expansion" }] }],
     ...over,
   });
 
@@ -103,3 +104,78 @@ export const fssBodySignals = (over: Record<string, unknown> = {}) => ({
     ...over,
   },
 });
+
+// A docking, as captured on 2026-10-11 and trimmed.
+export const docked = (over: Record<string, unknown> = {}) =>
+  journal({
+    timestamp: "2026-10-08T09:07:10Z",
+    event: "Docked",
+    StationName: "Cheranovsky City",
+    StationType: "Coriolis",
+    StarSystem: "Ngurii",
+    SystemAddress: 4999999999,
+    MarketID: 3225348096,
+    StarPos: [12.5, -40.25, 900.75],
+    DistFromStarLS: 1234.5,
+    LandingPads: { Small: 17, Medium: 18, Large: 9 },
+    ...over,
+  });
+
+// A planet with rings, scanned.
+export const scanOfRingedPlanet = (over: Record<string, unknown> = {}) =>
+  journal({
+    timestamp: "2026-10-08T09:07:20Z",
+    event: "Scan",
+    BodyName: "Ngurii 5",
+    BodyID: 22,
+    StarSystem: "Ngurii",
+    SystemAddress: 4999999999,
+    DistanceFromArrivalLS: 812.5,
+    PlanetClass: "Rocky body",
+    Landable: false,
+    Volcanism: "",
+    SurfaceGravity: 9.80665,
+    ReserveLevel: "PristineResources",
+    Rings: [
+      { Name: "Ngurii 5 A Ring", RingClass: "eRingClass_Rocky", MassMT: 1e10, InnerRad: 1e8, OuterRad: 2e8 },
+      { Name: "Ngurii 5 B Ring", RingClass: "eRingClass_MetalRich", MassMT: 1e10, InnerRad: 3e8, OuterRad: 4e8 },
+    ],
+    StarPos: [12.5, -40.25, 900.75],
+    ...over,
+  });
+
+// A landable planet, scanned.
+export const scanOfLandablePlanet = (over: Record<string, unknown> = {}) =>
+  journal({
+    timestamp: "2026-10-08T09:07:30Z",
+    event: "Scan",
+    BodyName: "Ngurii 5 a",
+    BodyID: 23,
+    StarSystem: "Ngurii",
+    SystemAddress: 4999999999,
+    DistanceFromArrivalLS: 815,
+    PlanetClass: "High metal content body",
+    Landable: true,
+    Volcanism: "minor silicate vapour geysers volcanism",
+    SurfaceGravity: 4.903325,
+    StarPos: [12.5, -40.25, 900.75],
+    ...over,
+  });
+
+// The surface scan of a ring: its hotspots.
+export const ringScan = (over: Record<string, unknown> = {}) =>
+  journal({
+    timestamp: "2026-10-08T09:07:40Z",
+    event: "SAASignalsFound",
+    BodyName: "Ngurii 5 A Ring",
+    SystemAddress: 4999999999,
+    BodyID: 24,
+    Signals: [
+      { Type: "Serendibite", Count: 2 },
+      { Type: "Platinum", Count: 3 },
+      { Type: "Monazite", Count: 1 },
+    ],
+    Genuses: [],
+    StarSystem: "Ngurii",
+    ...over,
+  });

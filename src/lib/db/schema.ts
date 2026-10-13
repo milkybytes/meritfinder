@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS systems (
   reinforcement REAL,
   undermining   REAL,
   updated_at    TEXT,            -- when this state was observed (ISO); a live update only applies if it is newer
-  faction_state TEXT,            -- controlling faction's BGS state: Boom, Bust, War, Expansion...
   conflict      TEXT             -- JSON [{power, progress}] (powerConflictProgress)
 );
 CREATE INDEX IF NOT EXISTS systems_name ON systems(name COLLATE NOCASE);
@@ -30,19 +29,20 @@ CREATE TABLE IF NOT EXISTS bodies (
   gravity         REAL,
   distance_ls     REAL,
   -- NULL = Spansh has no mining signal for this body. That means UNKNOWN, not none:
-  -- bodies scanned before the feature existed never report it. See NOTES/PLAN.md.
+  -- bodies scanned before the feature existed never report it.
   mining_signals  INTEGER,
+  signals_at      TEXT,        -- when mining_signals was observed (ISO); a newer observation replaces an older one
   PRIMARY KEY (system_id64, body_id)
 );
 CREATE INDEX IF NOT EXISTS bodies_system ON bodies(system_id64);
 
--- Every ring, and the hotspots of those that have any (ring mining). Databases built before rings without
--- hotspots were stored hold only the rings that have them.
+-- Every ring, and the hotspots of those that have any (ring mining).
 CREATE TABLE IF NOT EXISTS rings (
   system_id64     INTEGER NOT NULL REFERENCES systems(id64),
   name            TEXT NOT NULL,
   type            TEXT,        -- Metallic / Rocky / Icy / Metal Rich
   reserve         TEXT,        -- parent body's reserveLevel: Pristine / Major / Common / Low / Depleted
+  hotspots_at     TEXT,        -- when its hotspots were observed (ISO); NULL = not scanned, as far as we know
   PRIMARY KEY (system_id64, name)
 );
 CREATE TABLE IF NOT EXISTS ring_hotspots (
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS ring_hotspots (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS ring_hotspots_material ON ring_hotspots(material);
 
--- Non-carrier stations that have a market.
+-- Non-carrier stations. The dump supplies those with a market; the live feed adds any station someone docks at (no market until one is seen).
 CREATE TABLE IF NOT EXISTS stations (
   id          INTEGER PRIMARY KEY,   -- market id
   system_id64 INTEGER NOT NULL REFERENCES systems(id64),
@@ -63,8 +63,8 @@ CREATE TABLE IF NOT EXISTS stations (
   has_large   INTEGER NOT NULL DEFAULT 0,
   has_medium  INTEGER NOT NULL DEFAULT 0,
   distance_ls REAL,
-  market_updated TEXT,         -- never older than MAX_MARKET_AGE_DAYS
-  best_price    INTEGER        -- highest sell price of any commodity here: an upper bound used to rank systems cheaply
+  market_updated TEXT,         -- NULL: no market known. Never older than MAX_MARKET_AGE_DAYS (older ones are dropped by the ingest and pruned by the listener)
+  best_price    INTEGER        -- NULL when there is no market. Highest sell price of any commodity here: an upper bound used to rank systems cheaply
 );
 CREATE INDEX IF NOT EXISTS stations_system ON stations(system_id64);
 

@@ -30,6 +30,13 @@ export function shortBodyName(name: string, systemName: string): string {
   return name.length > prefix.length && name.toLowerCase().startsWith(prefix.toLowerCase()) ? name.slice(prefix.length) : name;
 }
 
+// A ring's name is its planet's, then the ring's letter, then "Ring": "B 15 A Ring" is ring A of planet "B 15". Names that do not follow it
+// (belt clusters such as "Mestra r1") have no parent.
+export function splitRingName(name: string): { parent: string; letter: string } | null {
+  const m = /^(.+?)\s([A-Z])\sRing$/.exec(name);
+  return m ? { parent: m[1], letter: m[2] } : null;
+}
+
 const sentenceCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
 export interface BodyDescription {

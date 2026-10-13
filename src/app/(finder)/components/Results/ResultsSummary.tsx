@@ -26,7 +26,7 @@ export function ResultsSummary({ count, truncated, partial, refName, params }: {
       )}
       {params.mining !== "known" && params.method === "planetary" && (
         <p className="mt-1 text-sm text-muted">
-          Mining signal counts are unknown for many planets: Spansh has none for planets scanned before the feature existed.
+          Mining signal counts are unknown for many planets, and those with signals may still not have the material.
         </p>
       )}
     </>

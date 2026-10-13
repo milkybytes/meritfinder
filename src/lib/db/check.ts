@@ -86,7 +86,7 @@ export function checkDatabase(db: Database.Database, { full = false }: { full?: 
   const bad: Record<string, string> = {
     "systems without a name or position": "SELECT COUNT(*) n FROM systems WHERE name = '' OR x IS NULL OR y IS NULL OR z IS NULL",
     "stations whose pad flags are not 0 or 1": "SELECT COUNT(*) n FROM stations WHERE has_large NOT IN (0, 1) OR has_medium NOT IN (0, 1)",
-    "stations without a best price": "SELECT COUNT(*) n FROM stations WHERE best_price IS NULL OR best_price < 0",
+    "stations with a market but no best price": "SELECT COUNT(*) n FROM stations WHERE best_price < 0 OR (best_price IS NULL AND market_updated IS NOT NULL)",
     "market rows with no demand or a non-positive price": "SELECT COUNT(*) n FROM market WHERE demand <= 0 OR sell_price <= 0",
   };
   for (const [what, sql] of Object.entries(bad)) {

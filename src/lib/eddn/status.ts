@@ -1,6 +1,6 @@
 import { withDb } from "../db/db";
 
-// Whether live updates are arriving, as the page shows it. The listener (npm run eddn) records a heartbeat in the database
+// Whether live updates are arriving, as the page shows it. The listener (npm run eddn-listener) records a heartbeat in the database
 // while messages are flowing, and removes it when it stops, so this reflects what is true now, not what was once configured.
 type LiveState = "live" | "delayed" | "off";
 

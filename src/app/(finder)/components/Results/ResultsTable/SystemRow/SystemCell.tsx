@@ -1,8 +1,7 @@
-import { FactionState } from "@/components/common/FactionState";
 import { CopyButton } from "@/components/ui/CopyButton";
 import type { ResultRow } from "@/lib/search/search";
 
-// The system's name (with a copy button), how far it is, and its controlling faction's state.
+// The system's name (with a copy button) and how far it is.
 export function SystemCell({ row }: { row: ResultRow }) {
   return (
     <td className="px-5 py-4">
@@ -11,7 +10,6 @@ export function SystemCell({ row }: { row: ResultRow }) {
         <CopyButton text={row.name} label="Copy system name" />
       </div>
       <div className="font-mono tabular-nums mt-0.5 text-xs text-muted">{row.distance.toFixed(1)} ly</div>
-      {row.factionState && row.factionState !== "None" && <FactionState state={row.factionState} className="mt-2" />}
     </td>
   );
 }

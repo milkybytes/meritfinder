@@ -58,13 +58,12 @@ export function parseParams(raw: RawParams): SearchParams {
     reserve: many(raw.reserve, RESERVES),
     mining: oneOf<MiningMode>(first(raw.mining), ["any", "known", "possible"], "possible"),
     material: many(raw.material),
-    states: many(raw.state),
     sort: oneOf(first(raw.sort), ["price", "distance"] as const, "price"),
     limit: LIMITS.includes(limit) ? limit : DEFAULT_LIMIT,
   };
   // One query may not carry an absurd number of chips overall.
   let budget = MAX_LIST_TOTAL;
-  for (const k of ["target", "commodity", "ringTypes", "reserve", "material", "states"] as const) {
+  for (const k of ["target", "commodity", "ringTypes", "reserve", "material"] as const) {
     p[k] = p[k].slice(0, Math.max(budget, 0));
     budget -= p[k].length;
   }

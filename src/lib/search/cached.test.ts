@@ -31,7 +31,7 @@ afterEach(() => {
 const base: SearchParams = {
   ref: "Origin", range: 200, power: "", goal: "any", target: [], commodity: [], minPrice: 0, minDemand: 0,
   pad: "S", maxStationLs: 0, maxAgeDays: 0, method: "any", material: [], ringTypes: [], mining: "possible",
-  sort: "distance", limit: 50, states: [], reserve: [],
+  sort: "distance", limit: 50, reserve: [],
 };
 
 describe("cachedSearch", () => {

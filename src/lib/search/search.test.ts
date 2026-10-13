@@ -15,7 +15,7 @@ afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 const base: SearchParams = {
   ref: "Origin", range: 200, power: "", goal: "any", target: [], commodity: [], minPrice: 0, minDemand: 0,
   pad: "S", maxStationLs: 0, maxAgeDays: 0, method: "any", material: [], ringTypes: [], mining: "possible",
-  sort: "distance", limit: 50, states: [], reserve: [],
+  sort: "distance", limit: 50, reserve: [],
 };
 // A search that names a mining method is about mining; one that does not is testing the market filters on their own, so it
 // does not need the fixture's systems to have something to mine.
@@ -28,10 +28,9 @@ describe("database", () => {
     expect(meta().systemCount).toBe(6);
   });
 
-  it("lists powers, states and ring materials for the filters", () => {
+  it("lists powers and ring materials for the filters", () => {
     const m = meta();
     expect(m.powers).toEqual(["Aisling Duval", "Edmund Mahon", "Zemina Torval"]);
-    expect(m.states).toEqual(["Boom", "Bust"]); // "None" is not offered as a state
     expect(m.allRings).toBe(true);
     // hotspot materials only if some ring has them; materials without hotspots because every ring is stored
     expect(m.ringMaterials).toEqual(expect.arrayContaining(["Monazite", "Painite", "Void Opal", "Gold", "Water"]));
@@ -166,10 +165,6 @@ describe("market filters", () => {
     const g = search({ ...base, commodity: ["Monazite"] }).rows.find((r) => r.name === "Gamma")!;
     expect(g.stations.map((s) => s.name)).toEqual(["Gamma Station"]);
     expect(g.stations[0].sellPrice).toBe(300000);
-  });
-  it("filters by the system's controlling faction state", () => {
-    expect(names({ states: ["Boom"] })).toEqual(["Alpha"]);
-    expect(names({ states: ["Boom", "Bust"] })).toEqual(["Alpha", "Beta"]);
   });
 });
 
@@ -318,7 +313,7 @@ describe("hostile input reaching the database layer", () => {
     for (const bad of HOSTILE) {
       expect(() => search({ ...base, ref: bad })).not.toThrow();
       expect(search({ ...base, ref: bad }).ref).toBeNull();
-      for (const field of ["commodity", "material", "target", "states", "ringTypes", "reserve"] as const) {
+      for (const field of ["commodity", "material", "target", "ringTypes", "reserve"] as const) {
         expect(() => search({ ...base, [field]: [bad] }), `${field}: ${bad}`).not.toThrow();
       }
       expect(() => search({ ...base, power: bad, goal: "reinforce" })).not.toThrow();

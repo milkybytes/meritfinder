@@ -18,6 +18,7 @@ export interface DbStats {
   oldestMarket: string | null;
   ringsWithoutHotspots: number; // 0 on a database built before every ring was stored
   commodities: number;
+  commodityNames: { checkedAt: string | null; result: string | null }; // the last look for names of commodities newer than the dump
 }
 
 export function dbStats(db: Database.Database, now = Date.now()): DbStats {
@@ -42,6 +43,7 @@ export function dbStats(db: Database.Database, now = Date.now()): DbStats {
     oldestMarket: range.oldest,
     ringsWithoutHotspots: one<{ n: number }>(db, "SELECT COUNT(*) n FROM rings r WHERE NOT EXISTS (SELECT 1 FROM ring_hotspots h WHERE h.system_id64 = r.system_id64 AND h.ring_name = r.name)").n,
     commodities: (JSON.parse(meta("commodities") ?? "[]") as string[]).length,
+    commodityNames: { checkedAt: meta("commodity_names_checked"), result: meta("commodity_names_result") },
   };
 }
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { REAL_VOLCANISM } from "@/test/spansh-bodies";
 
-import { since, age, demandLevel, describeBody, shortBodyName } from "./format";
+import { since, age, demandLevel, describeBody, shortBodyName, splitRingName } from "./format";
 describe("shortBodyName", () => {
   it("drops the system name prefix", () => {
     expect(shortBodyName("Hyades Sector HI-G a12-3 4 a", "Hyades Sector HI-G a12-3")).toBe("4 a");
@@ -73,4 +73,17 @@ describe("since", () => {
     expect([0, 12_000, 59_000, 60_000, 3_599_000, 3_600_000, 86_399_000, 86_400_000, 5 * 86_400_000].map((ms) => since(before(ms), now))).toEqual(["0 s", "12 s", "59 s", "1 min", "59 min", "1 h", "23 h", "1 d", "5 d"]);
   });
 
+});
+
+describe("splitRingName", () => {
+  it("separates a ring from its planet, which may itself be named with letters", () => {
+    expect(splitRingName("Col 285 Sector CY-N b21-8 B 15 A Ring")).toEqual({ parent: "Col 285 Sector CY-N b21-8 B 15", letter: "A" });
+    expect(splitRingName("Ngurii AB 1 B Ring")).toEqual({ parent: "Ngurii AB 1", letter: "B" });
+    expect(splitRingName("Sol 6 a A Ring")).toEqual({ parent: "Sol 6 a", letter: "A" }); // a ring of a moon
+  });
+
+  it("has no parent for a name that is not planet, letter, Ring", () => {
+    expect(splitRingName("Prism Mestra r1")).toBeNull();
+    expect(splitRingName("Ring")).toBeNull();
+  });
 });
