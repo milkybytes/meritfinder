@@ -46,3 +46,13 @@ export const POWERPLAY_STATE_COLORS: Record<string, string> = {
   Unoccupied: "#9ca3af", // grey
   Expansion: "#60a5fa", // blue
 };
+
+// A ring's reserve level, richest to poorest: green for a rich ring, through amber, to red for a depleted one. A level not listed is shown
+// in the muted default.
+export const RESERVE_COLORS: Record<string, string> = {
+  Pristine: "#4ade80",
+  Major: "#a3e635",
+  Common: "#fbbf24",
+  Low: "#fb923c",
+  Depleted: "#f87171",
+};

@@ -68,6 +68,15 @@ export function yieldsFrom(method: RingMethod | "any", material: string, ringTyp
 
 export const hasHotspots = (material: string) => find(material)?.hotspot ?? false;
 
+// The materials a ring of this type can yield to this technique ("any" = any technique), in table (alphabetical) order.
+export function materialsForRingType(ringType: string | null, method: RingMethod | "any"): string[] {
+  if (!ringType) return [];
+  return RING_MATERIALS.filter((m) => {
+    const types: string[] = method === "any" ? [...m.core, ...m.surface] : m[COLUMN[method]];
+    return types.includes(ringType);
+  }).map((m) => m.material);
+}
+
 // The materials this technique can extract from some ring type, in table (alphabetical) order.
 export const ringMaterialsFor = (method: RingMethod): string[] =>
   RING_MATERIALS.filter((m) => m[COLUMN[method]].length > 0).map((m) => m.material);

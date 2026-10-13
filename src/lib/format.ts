@@ -56,3 +56,12 @@ export function describeBody(subtype: string | null | undefined, volcanism: stri
   const name = sentenceCase((m ? m[2] : raw).replace(/\s*volcanism$/i, "").trim());
   return { type, volcanism: m ? `${name} (${m[1].toLowerCase()})` : name };
 }
+
+// "2 rings and 1 planet", "3 rings", "1 planet": names only the kinds there are, so a list that can only hold one kind never says "or".
+export function describePlaces(rings: number, planets: number): string {
+  const part = (n: number, one: string, many: string) => (n === 0 ? null : `${n} ${n === 1 ? one : many}`);
+  return [part(rings, "ring", "rings"), part(planets, "planet", "planets")].filter(Boolean).join(" and ");
+}
+
+// "3 spots to mine", or "No known spots": how many rings and planets in the results can yield a mineral.
+export const spotsLabel = (n: number) => (n === 0 ? "No known spots" : `${n} ${n === 1 ? "spot" : "spots"} to mine`);

@@ -162,7 +162,7 @@ describe("market filters", () => {
     expect(names({ commodity: ["Monazite"], maxAgeDays: 0 })).toContain("Beta"); // 0 = no limit
   });
   it("ignores fleet carriers", () => {
-    const g = search({ ...base, commodity: ["Monazite"] }).rows.find((r) => r.name === "Gamma")!;
+    const g = marketSearch({ commodity: ["Monazite"] }).rows.find((r) => r.name === "Gamma")!;
     expect(g.stations.map((s) => s.name)).toEqual(["Gamma Station"]);
     expect(g.stations[0].sellPrice).toBe(300000);
   });
@@ -213,7 +213,7 @@ describe("ring methods", () => {
   });
 
   it("any method is not limited by technique", () => {
-    expect(ringsOf({ method: "any" })).toEqual(["Alpha 1 A Ring", "Alpha 1 B Ring", "Alpha 1 C Ring"]);
+    expect(ringsOf({ method: "any" }).sort()).toEqual(["Alpha 1 A Ring", "Alpha 1 B Ring", "Alpha 1 C Ring"]); // all three, in whatever order they are shown
     expect(names({ method: "any", material: ["Void Opal"] })).toEqual(["Alpha"]);
   });
 
@@ -249,7 +249,8 @@ describe("ring materials without hotspots", () => {
 
 describe("planetary method", () => {
   it("known signals only vs known-or-unknown", () => {
-    expect(names({ method: "planetary", mining: "known" })).toEqual(["Alpha", "Gamma"]);
+    // Gamma's high-metal planet has signals, but Gamma pays only for Monazite, which that kind of planet is not listed for: not a place to earn.
+    expect(names({ method: "planetary", mining: "known" })).toEqual(["Alpha"]);
     const possible = search({ ...base, method: "planetary", mining: "possible" }).rows;
     expect(possible.find((r) => r.name === "Alpha")!.bodies.map((b) => b.name)).toEqual(["Alpha 2", "Alpha 3"]); // Alpha 3 = unknown
   });
@@ -263,8 +264,9 @@ describe("planetary method", () => {
 
 describe("any method", () => {
   it("with no material, needs something to mine: a ring with hotspots, or a planet that may have signals", () => {
-    // Alpha has rings and planets; Gamma has a planet with signals. Origin, Beta, Delta, Zeta have nothing to mine.
-    expect(names({ method: "any" })).toEqual(["Alpha", "Gamma"]);
+    // Alpha has rings and planets. Gamma has a planet with signals, but nothing it pays for can come from it. Origin, Beta, Delta, Zeta
+    // have nothing to mine.
+    expect(names({ method: "any" })).toEqual(["Alpha"]);
   });
 
   it("does not list a system just because goods sell well there: a market with nothing to mine is left out", () => {
@@ -304,6 +306,86 @@ describe("time budget", () => {
     expect(spent.rows.length).toBeLessThan(search(base).rows.length);
   });
 
+});
+
+describe("what sells here, and what can carry it", () => {
+  // Alpha pays Monazite 500,000, Void Opal 100,000 and Gold 9,000. Monazite: Rocky ring hotspot (x2), the Metallic ring by type (core), and the
+  // volcanic-magma planet (survey 46%). Void Opal: the Icy ring's hotspot. Gold: the Metallic ring by type. The icy planet carries none.
+  const alpha = (o: Partial<SearchParams> = {}) => search({ ...base, method: "any", ...o }).rows.find((r) => r.name === "Alpha")!;
+
+  it("lists the top minable commodities, best price first, with how many places can yield each", () => {
+    expect(alpha().sellable).toEqual([
+      { commodity: "Monazite", sellPrice: 500000, demand: 1000, station: "Alpha Hub", meets: true, places: 3, ringPlaces: 2, planetPlaces: 1 },
+      { commodity: "Void Opal", sellPrice: 100000, demand: 10, station: "Alpha Hub", meets: true, places: 1, ringPlaces: 1, planetPlaces: 0 },
+      { commodity: "Gold", sellPrice: 9000, demand: 500, station: "Alpha Hub", meets: true, places: 1, ringPlaces: 1, planetPlaces: 0 },
+    ]);
+  });
+
+  it("gives each station its own top few, so a hover card can show what that station pays for", () => {
+    expect(alpha().stations[0].top).toEqual([
+      { commodity: "Monazite", sellPrice: 500000, demand: 1000, meets: true },
+      { commodity: "Void Opal", sellPrice: 100000, demand: 10, meets: true },
+      { commodity: "Gold", sellPrice: 9000, demand: 500, meets: true },
+    ]);
+    // Gamma has a station and a fleet carrier; the carrier is ignored, the station's own list is its own.
+    const gamma = marketSearch({ method: "any" }).rows.find((r) => r.name === "Gamma")!;
+    expect(gamma.stations.map((s) => s.top.map((t) => t.commodity))).toEqual([["Monazite"]]);
+  });
+
+  it("follows the market filters: a chosen commodity, a minimum price", () => {
+    expect(alpha({ commodity: ["Gold"] }).sellable.map((s) => s.commodity)).toEqual(["Gold"]);
+    // Below the minimum price they are still listed, with their price, but they do not count as selling here.
+    const cheap = alpha({ minPrice: 400000 }).sellable;
+    expect(cheap.map((s) => [s.commodity, s.sellPrice, s.meets])).toEqual([["Monazite", 500000, true], ["Void Opal", 100000, false], ["Gold", 9000, false]]);
+    expect(alpha({ minPrice: 400000 }).stations[0]).toMatchObject({ commodity: "Monazite" }); // what it is listed for
+  });
+
+  it("marks which rings carry them (hotspot count, or null for the ring's type) and which planets (survey share)", () => {
+    const r = alpha();
+    const ring = (n: string) => r.rings.find((x) => x.name === n)!.carries;
+    expect(ring("Alpha 1 A Ring")).toEqual([{ material: "Monazite", hotspots: 2 }]);
+    expect(ring("Alpha 1 B Ring")).toEqual([{ material: "Void Opal", hotspots: 1 }]);
+    expect(ring("Alpha 1 C Ring")).toEqual([{ material: "Monazite", hotspots: null }, { material: "Gold", hotspots: null }]);
+    expect(r.bodies.find((b) => b.name === "Alpha 2")!.carries).toEqual([{ material: "Monazite", percent: 46 }]);
+    expect(r.bodies.find((b) => b.name === "Alpha 3")!.carries).toEqual([]); // an icy body is not listed for any of them: lower or unknown
+  });
+
+  it("puts what can carry the top commodity first, since the page shows only the first few", () => {
+    const r = alpha();
+    expect(r.rings.map((x) => x.name)).toEqual(["Alpha 1 A Ring", "Alpha 1 C Ring", "Alpha 1 B Ring"]);
+    expect(r.bodies.map((b) => b.name)).toEqual(["Alpha 2", "Alpha 3"]);
+  });
+
+  it("says none when nothing in the system can carry what sells (Gamma's high-metal planet is not listed for Monazite)", () => {
+    const gamma = marketSearch({ method: "any" }).rows.find((r) => r.name === "Gamma")!;
+    expect(gamma.sellable).toEqual([expect.objectContaining({ commodity: "Monazite", places: 0 })]);
+  });
+
+  it("does not list a system whose sales cannot be mined there (a market of Monazite beside only a high-metal planet)", () => {
+    expect(names({ method: "any" })).not.toContain("Gamma");
+    expect(names({ method: "planetary" })).not.toContain("Gamma");
+  });
+
+  it("lists a system for what can be mined there: the headline is the best sale that something in the system can yield", () => {
+    // Alpha pays 500,000 for Monazite, but with a laser only Gold (and Painite) can be had there: Monazite is core-only.
+    const r = search({ ...base, method: "laser" }).rows.find((x) => x.name === "Alpha")!;
+    expect(r.stations[0]).toMatchObject({ commodity: "Gold", sellPrice: 9000 });
+    expect(search({ ...base, method: "core" }).rows.find((x) => x.name === "Alpha")!.stations[0]).toMatchObject({ commodity: "Monazite", sellPrice: 500000 });
+  });
+
+  it("keeps the headline sale when it is something the system can yield", () => {
+    const rows = search({ ...base, method: "any", sort: "price" }).rows;
+    expect(rows.map((r) => [r.name, r.stations[0].commodity, r.stations[0].sellPrice])).toEqual([["Alpha", "Monazite", 500000]]);
+  });
+
+  it("acquire: counts the places in your power's mining systems, without changing the ones shared between rows", () => {
+    const run = () => search({ ...base, goal: "acquire", power: "Aisling Duval", method: "any" }, { requireMining: false }).rows.find((r) => r.name === "Delta")!;
+    const delta = run();
+    expect(delta.sellable).toEqual([expect.objectContaining({ commodity: "Water", places: 1 })]);
+    const icy = delta.sources[0].rings.find((x) => x.name === "Alpha 1 B Ring")!;
+    expect(icy.carries).toEqual([{ material: "Water", hotspots: null }]);
+    expect(run().sources[0].rings.find((x) => x.name === "Alpha 1 B Ring")!.carries).toEqual([{ material: "Water", hotspots: null }]);
+  });
 });
 
 describe("hostile input reaching the database layer", () => {

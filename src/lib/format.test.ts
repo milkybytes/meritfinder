@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { REAL_VOLCANISM } from "@/test/spansh-bodies";
 
-import { since, age, demandLevel, describeBody, shortBodyName, splitRingName } from "./format";
+import { since, age, demandLevel, describeBody, describePlaces, shortBodyName, splitRingName } from "./format";
 describe("shortBodyName", () => {
   it("drops the system name prefix", () => {
     expect(shortBodyName("Hyades Sector HI-G a12-3 4 a", "Hyades Sector HI-G a12-3")).toBe("4 a");
@@ -85,5 +85,14 @@ describe("splitRingName", () => {
   it("has no parent for a name that is not planet, letter, Ring", () => {
     expect(splitRingName("Prism Mestra r1")).toBeNull();
     expect(splitRingName("Ring")).toBeNull();
+  });
+});
+
+describe("describePlaces", () => {
+  it("names only the kinds there are", () => {
+    expect(describePlaces(2, 1)).toBe("2 rings and 1 planet");
+    expect(describePlaces(1, 0)).toBe("1 ring");
+    expect(describePlaces(0, 3)).toBe("3 planets");
+    expect(describePlaces(0, 0)).toBe("");
   });
 });

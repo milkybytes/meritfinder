@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { REAL_SUBTYPES, REAL_VOLCANISM } from "../test/spansh-bodies";
 
-import { classifyBody, type BodyClass } from "./body-resources";
+import { classifyBody, likelihoodFor, materialsForClass, type BodyClass } from "./body-resources";
 
 describe("classifyBody", () => {
   it.each([
@@ -52,4 +52,20 @@ describe("classifyBody follows the chart, for every real body type and volcanism
     }
   });
 
+});
+
+describe("likelihoodFor and materialsForClass", () => {
+  it("gives the survey's share for a class the material is listed for, and null for any other (lower or unknown, not none)", () => {
+    expect(likelihoodFor("Periclase Dunite", "rocky")).toBe(12);
+    expect(likelihoodFor("Periclase Dunite", "icy")).toBeNull();
+    expect(likelihoodFor("Not a material", "rocky")).toBeNull();
+  });
+
+  it("lists what a class can hold, most likely first", () => {
+    const rocky = materialsForClass("rocky");
+    expect(rocky.map((m) => m.percent)).toEqual([...rocky.map((m) => m.percent)].sort((a, b) => b - a));
+    expect(rocky[0]).toEqual({ material: "Magnesite", percent: 43 });
+    expect(rocky.map((m) => m.material)).toContain("Periclase Dunite");
+    expect(materialsForClass("icy").map((m) => m.material)).toEqual(["Deuterium", "Low Temperature Diamonds", "Helium-3"]);
+  });
 });

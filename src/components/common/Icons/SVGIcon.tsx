@@ -8,8 +8,8 @@ export interface SVGIconProps extends Omit<SVGProps<SVGSVGElement>, "children"> 
   children?: ReactNode;
   /** Width and height: a number is px, a string is any CSS length ("1.25em"). Default 1em, so it scales with text. */
   size?: number | string;
-  /** "accent": the theme's accent colour. "glow": white with a soft glow, HUD style. Default: the text colour. */
-  variant?: "accent" | "glow";
+  /** "accent": the theme's accent colour. Default: the text colour. */
+  variant?: "accent";
 }
 
 // Decorative by default (hidden from screen readers). Give it an aria-label and it becomes an image with that name.

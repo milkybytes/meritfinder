@@ -1,3 +1,4 @@
+import { RingedPlanetImage } from "@/components/common/Icons";
 import { FIELD_LABEL } from "@/components/ui/styles";
 import type { LiveStatus as Status } from "@/lib/eddn/status";
 import { formatNumber } from "@/lib/format";
@@ -5,11 +6,12 @@ import { formatNumber } from "@/lib/format";
 import { LiveStatus } from "./LiveStatus";
 import { ThemePicker } from "./ThemePicker";
 
-// The brand and the number of systems on the left; on the right whether live updates are arriving, then the colour theme.
+// The app icon and the brand and the number of systems on the left; on the right whether live updates are arriving, then the colour theme.
 export function Header({ systemCount, live }: { systemCount: number; live: Status }) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-3.5">
+        <RingedPlanetImage size={38} className="shrink-0" />
         <div>
           <h1 className="font-display text-2xl font-bold uppercase leading-none tracking-[0.2em]">
             merit<span className="text-accent">finder</span>

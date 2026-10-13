@@ -20,7 +20,7 @@ export const METHODS: MethodInfo[] = [
   {
     id: "planetary",
     label: "Planetary (Rhino SRV)",
-    blurb: "Landable planets with mining locations. Only a signal count is known, not the material.",
+    blurb: "Landable planets with mining locations. Signals do not indicate what materials are present.",
   },
 ];
 
@@ -28,6 +28,9 @@ export const isRingMethod = (m: MiningMethod): m is RingMethod => m === "laser" 
 
 // Materials the planetary method supports at all (from the community survey).
 export const PLANETARY_MATERIALS = MATERIALS.map((m) => m.material);
+
+// Everything the app knows how to mine, by any method: what "top minable commodities" are chosen from.
+export const MINABLE_MATERIALS: string[] = [...new Set([...RING_MATERIAL_NAMES, ...PLANETARY_MATERIALS])].sort();
 
 // Materials offered for a method. Ring materials are those the technique can extract (see ring-materials.ts) that the
 // database can find (`ringMaterials`, from meta()); planetary ones come from the survey.

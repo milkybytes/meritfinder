@@ -58,6 +58,18 @@ export const MATERIALS: MaterialEntry[] = [
   m("Helium-3", "Icy ground", { icy: 17 }, 93432, 80969, 456092),
 ];
 
+// The survey's share (percent) of a class's mining locations that show this material, or null when the class is not among the material's
+// top two: lower or unknown, not "none".
+export function likelihoodFor(material: string, cls: BodyClass): number | null {
+  return MATERIALS.find((e) => e.material === material)?.likelihood[cls] ?? null;
+}
+
+// What a class can hold according to the survey, most likely first.
+export function materialsForClass(cls: BodyClass): { material: string; percent: number }[] {
+  return MATERIALS.flatMap((e) => (e.likelihood[cls] === undefined ? [] : [{ material: e.material, percent: e.likelihood[cls] }]))
+    .sort((a, b) => b.percent - a.percent || a.material.localeCompare(b.material));
+}
+
 // Class precedence from the survey: metal-rich, HMC, icy and rocky-ice get their own class even if volcanic; only rocky bodies split by volcanism,
 // and silicate magma (not geysers) stays plain "rocky". Inputs are Spansh strings.
 export function classifyBody(subtype: string | null, volcanism: string | null): BodyClass | null {

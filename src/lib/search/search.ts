@@ -1,8 +1,8 @@
 import type Database from "better-sqlite3";
 
 import { ACQUISITION_RANGE_LY } from "@/data/acquisition";
-import { MATERIALS, type BodyClass } from "@/data/body-resources";
-import { isRingMethod, PLANETARY_MATERIALS, type MiningMethod } from "@/data/mining-methods";
+import { likelihoodFor, MATERIALS, type BodyClass } from "@/data/body-resources";
+import { isRingMethod, MINABLE_MATERIALS, PLANETARY_MATERIALS, type MiningMethod } from "@/data/mining-methods";
 import { RING_MATERIAL_NAMES, hasHotspots, yieldsFrom } from "@/data/ring-materials";
 import { getConfig } from "@/lib/config";
 
@@ -46,6 +46,9 @@ export interface BodyRow {
   gravity: number | null;
   distanceLs: number | null;
   miningSignals: number | null; // null = unknown
+  // Which of the system's top sale commodities (ResultRow.sellable) the survey lists this kind of body for, and the share of its mining
+  // locations that show it. A commodity missing here is lower or unknown, not ruled out.
+  carries: { material: string; percent: number }[];
 }
 
 export interface RingRow {
@@ -53,6 +56,21 @@ export interface RingRow {
   type: string | null;
   reserve: string | null;
   hotspots: { material: string; count: number | null }[]; // count is null for a material with no hotspots: it is somewhere in the ring
+  // Which of the system's top sale commodities this ring yields to the chosen technique: at a hotspot (count), or null for anywhere in
+  // a ring of this type.
+  carries: { material: string; hotspots: number | null }[];
+}
+
+// A commodity that sells in the system (at any of its stations) and that the app can mine, best price first.
+export interface SellableRow {
+  commodity: string;
+  sellPrice: number;
+  demand: number;
+  station: string;  // the station that pays most for it
+  meets: boolean;   // at some station, at or above the chosen minimum price and demand (the others are shown with their price, dimmed)
+  places: number;   // rings and planets (in this system, or for Acquire in your power's systems) that carry it
+  ringPlaces: number;   // of which rings
+  planetPlaces: number; // of which planets
 }
 
 export interface StationRow {
@@ -64,6 +82,8 @@ export interface StationRow {
   sellPrice: number;
   demand: number;
   marketUpdated: string | null;
+  // every commodity this station pays for that the app can mine, best first, with whether it meets the chosen minimum price and demand
+  top: { commodity: string; sellPrice: number; demand: number; meets: boolean }[];
 }
 
 // Where to mine for an Acquire target: a Fortified or Stronghold system of your power with something to mine. Acquisition
@@ -89,6 +109,7 @@ export interface ResultRow {
   contested: boolean;       // Unoccupied, with two or more powers competing for it (worked out: see contested.ts)
   powers: string[];         // every power with a presence in the system, controller first
   stations: StationRow[];   // best price first
+  sellable: SellableRow[];  // every minable commodity any of the stations pays for, best price first
   bodies: BodyRow[];        // landable planets matching the planetary filters
   miningBodies: number;     // planets with known mining signals
   unknownBodies: number;    // planets with no signal data
@@ -268,6 +289,17 @@ function searchWith(db: Database.Database, p: SearchParams, budgetMs: number, re
      WHERE station_id = @tid AND sell_price >= @minPrice AND demand >= @minDemand ${cWhere}
      ORDER BY sell_price DESC LIMIT 1`,
   );
+  // Every commodity a station pays for that can be mined, best first (the headline sale above is whatever pays most, mineable or not).
+  const sellableNames = commodities ? commodities.filter((c) => MINABLE_MATERIALS.includes(c)) : MINABLE_MATERIALS;
+  // Every one a station pays for, whatever the minimum price and demand: those below it are shown too, dimmed, with their real price.
+  const tBind: Record<string, unknown> = {};
+  const topRows = sellableNames.length
+    ? db.prepare(
+        `SELECT commodity, sell_price price, demand FROM market
+         WHERE station_id = @tid AND commodity IN (${inList("m", sellableNames, tBind)})
+         ORDER BY sell_price DESC`,
+      )
+    : null;
   const mining = miningFilter(db, p, requireMining);
   const sourcesNear = p.goal === "acquire" ? sourceFinder(db, p) : null; // acquire: what you sell in and what you mine in are different systems
 
@@ -286,33 +318,114 @@ function searchWith(db: Database.Database, p: SearchParams, budgetMs: number, re
       partial = true;
       break;
     }
-    const stations: StationRow[] = [];
+    const found: { station: StationRow; tid: number }[] = [];
     for (const t of stationsStmt.all({ ...bind, sid: c.id64 }) as StationDbRow[]) {
       const m = bestRow.get({ ...mBind, tid: t.tid }) as { commodity: string; price: number; demand: number } | undefined;
       if (m) {
-        stations.push({
-          name: t.station, commodity: m.commodity, type: t.stype, distanceLs: t.sls, pad: t.hl ? "L" : t.hm ? "M" : "S",
-          sellPrice: m.price, demand: m.demand, marketUpdated: t.mu,
+        found.push({
+          tid: t.tid,
+          station: {
+            name: t.station, commodity: m.commodity, type: t.stype, distanceLs: t.sls, pad: t.hl ? "L" : t.hm ? "M" : "S",
+            sellPrice: m.price, demand: m.demand, marketUpdated: t.mu, top: [],
+          },
         });
       }
     }
-    if (!stations.length) continue;
-    stations.sort((a, b) => b.sellPrice - a.sellPrice);
+    if (!found.length) continue;
+    found.sort((a, b) => b.station.sellPrice - a.station.sellPrice);
+    const stations = found.map((f) => f.station);
 
     const sys: ResultRow = {
       id64: c.id64, name: c.name, distance: c.dist, controllingPower: c.cp, powerState: c.ps, contested: isContested(c.ps, c.cf),
       powers: orderPowers(c.pw, c.cp),
-      stations, bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
+      stations, sellable: [], bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
     };
     if (sourcesNear) {
       sys.sources = sourcesNear(c); // nowhere of yours to mine within reach: not a target
       if (!sys.sources.length) continue;
     } else if (!mining(sys)) continue;
+    // Only systems that are listed: the extra market reads are for what is shown, not for every candidate.
+    if (topRows) {
+      for (const f of found) {
+        f.station.top = (topRows.all({ ...tBind, tid: f.tid }) as { commodity: string; price: number; demand: number }[]).map((r) => ({
+          commodity: r.commodity, sellPrice: r.price, demand: r.demand, meets: r.price >= p.minPrice && r.demand >= p.minDemand,
+        }));
+      }
+    }
+    sys.sellable = topSellable(stations);
+    annotate(sys, p.method);
+    // Selling where you mine: when what can be mined here is known, a system is listed only if something it pays for (at the chosen price and
+    // demand) can be yielded by one of the rings or planets shown, and what it is listed for is that. A market full of Monazite beside
+    // nothing but icy bodies is not a place to earn from Monazite. (Not applied when only non-minable commodities were asked for.)
+    if (requireMining && topRows) {
+      const carried = new Set(sys.sellable.filter((s) => s.meets && s.places > 0).map((s) => s.commodity));
+      if (carried.size === 0) continue;
+      sys.stations = sys.stations
+        .map((st) => {
+          const best = st.top.find((t) => t.meets && carried.has(t.commodity));
+          return best ? { ...st, commodity: best.commodity, sellPrice: best.sellPrice, demand: best.demand } : null;
+        })
+        .filter((st): st is StationRow => st !== null)
+        .sort((a, b) => b.sellPrice - a.sellPrice);
+      sys.sources = sys.sources.filter((s) => [...s.rings, ...s.bodies].some((x) => x.carries.some((c) => carried.has(c.material))));
+    }
     results.push(sys);
     if (p.sort === "price") results.sort((a, b) => b.stations[0].sellPrice - a.stations[0].sellPrice || a.distance - b.distance);
   }
 
   return { ref, rows: results.slice(0, p.limit), truncated: results.length > p.limit, partial };
+}
+
+// The minable commodities across a system's stations: one entry per commodity, at the station that pays most for it.
+function topSellable(stations: StationRow[]): SellableRow[] {
+  // For each commodity: the best price that meets the minimum if any station's does, else the best price at all.
+  const best = new Map<string, SellableRow>();
+  for (const station of stations) {
+    for (const r of station.top) {
+      const row: SellableRow = { commodity: r.commodity, sellPrice: r.sellPrice, demand: r.demand, station: station.name, meets: r.meets, places: 0, ringPlaces: 0, planetPlaces: 0 };
+      const have = best.get(r.commodity);
+      if (!have || (r.meets && !have.meets) || (r.meets === have.meets && r.sellPrice > have.sellPrice)) best.set(r.commodity, row);
+    }
+  }
+  // Those that meet the minimum first: they are what the rings and planets are matched and ranked against.
+  return [...best.values()].sort((a, b) => Number(b.meets) - Number(a.meets) || b.sellPrice - a.sellPrice || b.demand - a.demand);
+}
+
+// Marks which rings and planets carry what the system's stations buy, counts the places for each, and puts the relevant ones first (the
+// page shows only the first few). Acquire's rings and planets are in the mining systems, which are shared between rows, so they are copied.
+function annotate(sys: ResultRow, method: MiningMethod): void {
+  const wanted = sys.sellable.map((s) => s.commodity);
+  const technique = isRingMethod(method) ? method : "any";
+  const rank = (carried: { material: string }[]) => (carried.length ? Math.min(...carried.map((c) => wanted.indexOf(c.material))) : wanted.length);
+
+  const ring = (r: RingRow): RingRow => ({
+    ...r,
+    carries: wanted.flatMap((material) => {
+      const spot = r.hotspots.find((h) => h.material === material);
+      if (spot) return [{ material, hotspots: spot.count }];
+      return yieldsFrom(technique, material, r.type) ? [{ material, hotspots: null }] : [];
+    }),
+  });
+  const body = (b: BodyRow): BodyRow => ({
+    ...b,
+    carries: wanted.flatMap((material) => {
+      const percent = b.bodyClass ? likelihoodFor(material, b.bodyClass) : null;
+      return percent === null ? [] : [{ material, percent }];
+    }),
+  });
+  const rings = (list: RingRow[]) => list.map(ring).sort((a, b) => rank(a.carries) - rank(b.carries));
+  const bodies = (list: BodyRow[]) => list.map(body).sort((a, b) => rank(a.carries) - rank(b.carries));
+
+  sys.rings = rings(sys.rings);
+  sys.bodies = bodies(sys.bodies);
+  sys.sources = sys.sources.map((s) => ({ ...s, rings: rings(s.rings), bodies: bodies(s.bodies) }));
+
+  for (const s of sys.sellable) {
+    const here = (c: { carries: { material: string }[] }) => c.carries.some((x) => x.material === s.commodity);
+    s.ringPlaces = [...sys.rings, ...sys.sources.flatMap((x) => x.rings)].filter(here).length;
+    s.planetPlaces = [...sys.bodies, ...sys.sources.flatMap((x) => x.bodies)].filter(here).length;
+    s.places = s.ringPlaces + s.planetPlaces;
+  }
 }
 
 // For Acquire: given a system to sell in, the nearest Fortified systems of your power within 20 ly of it, or Stronghold systems
@@ -331,7 +444,7 @@ function sourceFinder(db: Database.Database, p: SearchParams): (from: { x: numbe
     if (!mined.has(s.id64)) {
       const row: ResultRow = {
         id64: s.id64, name: s.name, distance: 0, controllingPower: s.cp, powerState: s.ps, contested: false, powers: orderPowers(s.pw, s.cp),
-        stations: [], bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
+        stations: [], sellable: [], bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
       };
       mined.set(
         s.id64,
@@ -370,7 +483,7 @@ function miningFilter(db: Database.Database, p: SearchParams, requireMining: boo
     const ringMap = new Map<string, RingRow>();
     for (const h of ringStmt.all(sys.id64) as RingDbRow[]) {
       let ring = ringMap.get(h.name);
-      if (!ring) ringMap.set(h.name, (ring = { name: h.name, type: h.type, reserve: h.reserve, hotspots: [] }));
+      if (!ring) ringMap.set(h.name, (ring = { name: h.name, type: h.type, reserve: h.reserve, hotspots: [], carries: [] }));
       if (h.material) ring.hotspots.push({ material: h.material, count: h.count });
     }
     const technique = isRingMethod(p.method) ? p.method : "any";
@@ -391,7 +504,7 @@ function miningFilter(db: Database.Database, p: SearchParams, requireMining: boo
 
     const all = (bodyStmt.all(sys.id64) as BodyDbRow[]).map<BodyRow>((b) => ({
       bodyId: b.body_id, name: b.name, subtype: b.subtype, volcanism: b.volcanism, bodyClass: b.body_class,
-      gravity: b.gravity, distanceLs: b.distance_ls, miningSignals: b.mining_signals,
+      gravity: b.gravity, distanceLs: b.distance_ls, miningSignals: b.mining_signals, carries: [],
     }));
     // A wanted material the planetary method can't yield (e.g. a ring-only material) matches no planet.
     const planetsMatching = all.filter((b) => {

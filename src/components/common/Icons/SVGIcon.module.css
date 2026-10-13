@@ -22,8 +22,3 @@
 .SVGIcon[data-variant="accent"] {
   color: var(--accent);
 }
-
-/* White with a faint glow, whatever the text colour (HUD-style station icons). */
-.SVGIcon[data-variant="glow"] {
-  filter: brightness(0) invert(1) drop-shadow(0 0 1px rgba(255, 255, 255, 0.8));
-}
