@@ -4,7 +4,7 @@ import { MAX_NAME_LENGTH, MAX_RANGE, parseParams, type RawParams } from "./param
 describe("parseParams", () => {
   it("applies sensible defaults to an empty query", () => {
     expect(parseParams({})).toEqual({
-      ref: "", range: 50, power: "", goal: "undermine", target: [], commodity: [], minPrice: 0, minDemand: 0,
+      ref: "", range: 300, power: "", goal: "undermine", target: [], commodity: [], minPrice: 0, minDemand: 0,
       pad: "L", maxStationLs: 0, maxAgeDays: 7, method: "any", ringTypes: [], reserve: [], mining: "possible",
       material: [], sort: "price", limit: 25,
     });
@@ -16,7 +16,7 @@ describe("parseParams", () => {
     expect(parseParams({ range: "500" }).range).toBe(500);
     expect(parseParams({ range: "-5" }).range).toBe(1);
     expect(parseParams({ range: "0" }).range).toBe(1);
-    expect(parseParams({ range: "abc" }).range).toBe(50);
+    expect(parseParams({ range: "abc" }).range).toBe(300);
     expect(parseParams({ range: "250" }).range).toBe(250);
   });
 
