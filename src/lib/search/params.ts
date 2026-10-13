@@ -43,7 +43,7 @@ export function parseParams(raw: RawParams): SearchParams {
   const limit = Math.round(num(first(raw.limit), DEFAULT_LIMIT, 1, Math.max(...LIMITS)));
   const p: SearchParams = {
     ref: clean(first(raw.ref)).slice(0, MAX_NAME_LENGTH),
-    range: Math.round(num(first(raw.range), 50, 1, MAX_RANGE)),
+    range: Math.round(num(first(raw.range), 300, 1, MAX_RANGE)),
     power: oneOf(clean(first(raw.power)), KNOWN_POWERS, ""),
     goal: oneOf<Goal>(first(raw.goal), ["undermine", "reinforce", "acquire"], "undermine"),
     target: many(raw.target, KNOWN_POWERS),
