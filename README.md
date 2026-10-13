@@ -6,9 +6,14 @@ Find Elite Dangerous Powerplay systems where minerals sell well, with ring hotsp
 
 ```
 npm install
-npm run ingest      # downloads the Spansh dump (~4.5 GB) and builds data/meritfinder.sqlite; about 1.5 hours
+npm run ingest      # builds data/meritfinder.sqlite from the Spansh dump (~4.5 GB); about 1.5 hours the first time
 npm run dev         # http://localhost:3000
+npm run eddn-listener   # optional, in another terminal: keeps prices and Powerplay state current from EDDN
 ```
+
+The ingest reads `data/galaxy_stations.json.gz` if it is there, and otherwise downloads it from Spansh once and keeps it there, so
+rebuilding does not download again. To use a copy you already have, drop it in as that file
+(<https://downloads.spansh.co.uk/galaxy_stations.json.gz>). `--download` fetches a fresh one; `--no-keep` leaves no copy.
 
 Next.js, TypeScript, SQLite (better-sqlite3), Tailwind, Node 24+
 
