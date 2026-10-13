@@ -14,7 +14,7 @@ const mono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "meritfinder",
-  description: "Find Powerplay undermining systems with mining targets: rings, cores and planetary",
+  description: "Elite Dangerous Odyssey app to find Powerplay systems with mining targets. Undermine, reinforce, or acquire them with ease.",
 };
 
 // Applies the saved colour theme before first paint so there is no flash of the default theme.
