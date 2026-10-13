@@ -200,3 +200,18 @@ describe("anything else", () => {
     for (const m of odd) expect(skipped(m), JSON.stringify(m)).not.toBeNull();
   });
 });
+
+describe("the game version", () => {
+  it("is required of market and journal messages, which EDDN's own rules oblige senders to supply", () => {
+    for (const m of [marketMessage(), docked(), locationInFortifiedSystem()] as { header: Record<string, unknown> }[]) {
+      expect(skipped(m)).toBeNull();
+      expect(skipped({ ...m, header: { ...m.header, gameversion: undefined } })).toBe("no-gameversion");
+      expect(skipped({ ...m, header: { ...m.header, gameversion: "" } })).toBe("no-gameversion");
+      expect(skipped({ ...m, header: undefined })).toBe("no-gameversion");
+    }
+  });
+
+  it("is not asked of fssbodysignals messages, which the live feed's EDDiscovery sends without it", () => {
+    expect(skipped(fssBodySignals())).toBeNull();
+  });
+});

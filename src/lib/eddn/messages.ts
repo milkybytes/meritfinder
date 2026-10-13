@@ -122,6 +122,12 @@ export function parseMessage(envelope: unknown, now: number, symbols: ReadonlyMa
   if (!isObj(envelope) || !isObj(envelope.message) || typeof envelope.$schemaRef !== "string") return { skip: "malformed" };
   const message = envelope.message;
 
+  // EDDN requires a sender of commodity and journal messages to say which game version they came from, and suggests listeners ignore ones that
+  // do not. A message without it is from software that is not following the rules (or is not a game client at all). The fssbodysignals messages
+  // seen in the live feed from EDDiscovery omit it, so they are not held to it.
+  const needsVersion = envelope.$schemaRef === LIVE_SCHEMAS.commodity || envelope.$schemaRef === LIVE_SCHEMAS.journal;
+  if (needsVersion && !(isObj(envelope.header) && typeof envelope.header.gameversion === "string" && envelope.header.gameversion.length > 0)) return { skip: "no-gameversion" };
+
   switch (envelope.$schemaRef) {
     case LIVE_SCHEMAS.commodity:
       return parseMarket(message, now, symbols);
