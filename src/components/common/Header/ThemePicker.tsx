@@ -1,7 +1,6 @@
 "use client";
 
 import { Dropdown } from "@/components/ui/Dropdown";
-import { FIELD_LABEL } from "@/components/ui/styles";
 import { POWER_COLORS, THEME_NAMES } from "@/data/powers";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -12,11 +11,6 @@ export function ThemePicker() {
   const [theme, choose] = useTheme();
 
   return (
-    <div className="flex items-center gap-2">
-      <span className={FIELD_LABEL} aria-hidden="true">
-        Theme
-      </span>
-      <Dropdown label="Colour theme" hideLabel compact options={OPTIONS} value={theme} onChange={choose} />
-    </div>
+    <Dropdown label="Colour theme" hideLabel compact options={OPTIONS} value={theme} onChange={choose} />
   );
 }

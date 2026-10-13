@@ -16,7 +16,7 @@ export interface SystemSuggestion {
 const cleanSystemQuery = (raw: string | null | undefined): string =>
   (raw ?? "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, MAX_NAME_LENGTH);
 
-// Systems in the database (those with a usable station market, the only ones a search can start from) whose name starts
+// Systems in the database (the only ones a search can start from) whose name starts
 // with what was typed, alphabetically. A name shared by several systems is listed once.
 export function suggestSystems(raw: string | null | undefined): SystemSuggestion[] {
   const q = cleanSystemQuery(raw);

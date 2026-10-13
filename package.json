@@ -16,7 +16,7 @@
     "db:show": "tsx scripts/db.ts show",
     "db:sql": "tsx scripts/db.ts sql",
     "db:migrate": "tsx scripts/db.ts migrate",
-    "eddn": "tsx scripts/eddn.ts",
+    "eddn-listener": "tsx scripts/eddn-listener.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage"

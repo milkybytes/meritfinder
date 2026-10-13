@@ -10,6 +10,11 @@ export function DatabaseProblem({ state }: { state: Exclude<DatabaseState, "ok">
           <>
             No database yet. Run <code>npm run ingest</code> first.
           </>
+        ) : state === "unreadable" ? (
+          <>
+            The database cannot be read right now. This usually means the live-update listener was stopped in the middle of a write. Start it again
+            (<code>npm run eddn-listener</code>): it repairs the file as it starts. If it is already restarting, reload in a minute.
+          </>
         ) : (
           <>
             The database does not match this version of the app. Run <code>npm run db:migrate</code> to update it, or <code>npm run ingest -- --force</code> to rebuild it.

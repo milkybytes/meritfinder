@@ -17,7 +17,21 @@ export const dbKey = () => {
 
 // Web app: run fn against a read-only handle that is closed straight afterwards. Never keep
 // the handle open between requests: on Windows an open handle stops the ingest replacing the file.
+//
+// A writer killed mid-transaction (the listener: OOM, kill -9, a power cut) leaves a journal that has to be rolled back before anything
+// can read the file, and a read-only handle can't do that. SQLite never corrupts the database this way; the file is just unreadable until
+// a connection that may write opens it. So on that one error this opens one writable connection, which repairs it, and tries again.
+// That needs write access to the data folder; where there is none, the error stands and the page says the database can't be read.
 export function withDb<T>(fn: (db: Database.Database) => T): T {
+  try {
+    return readOnly(fn);
+  } catch (e) {
+    if ((e as { code?: string }).code !== "SQLITE_READONLY_ROLLBACK" || !repairInterruptedWrite()) throw e;
+    return readOnly(fn);
+  }
+}
+
+function readOnly<T>(fn: (db: Database.Database) => T): T {
   const db = new Database(getDbPath(), { readonly: true, fileMustExist: true });
   try {
     return fn(db);
@@ -26,15 +40,36 @@ export function withDb<T>(fn: (db: Database.Database) => T): T {
   }
 }
 
+// Opening for writing is what rolls a hot journal back. Returns whether it could.
+function repairInterruptedWrite(): boolean {
+  try {
+    const db = new Database(getDbPath(), { fileMustExist: true });
+    try {
+      db.pragma("user_version");
+    } finally {
+      db.close();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Whether the file's schema is the one this app expects (see migrations.ts).
 export const schemaCurrent = (): boolean => withDb((db) => schemaVersion(db) === SCHEMA_VERSION);
 
-export type DatabaseState = "missing" | "outdated" | "ok";
+// "unreadable": there is a file but it can not be read right now, typically a write that was cut short (a listener killed mid-write
+// leaves a journal that only a writer can roll back, see scripts/eddn-listener.ts).
+export type DatabaseState = "missing" | "outdated" | "unreadable" | "ok";
 
-// Whether the app can use its database: there is one, and its schema is the expected one.
+// Whether the app can use its database: there is one, it can be read, and its schema is the expected one.
 export function databaseState(): DatabaseState {
   if (!fs.existsSync(/* turbopackIgnore: true */ getDbPath())) return "missing";
-  return schemaCurrent() ? "ok" : "outdated";
+  try {
+    return schemaCurrent() ? "ok" : "outdated";
+  } catch {
+    return "unreadable";
+  }
 }
 
 // A new database, or one being built (the ingest): all migrations run, so it has the current shape. Journal off for speed: use

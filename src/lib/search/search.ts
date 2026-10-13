@@ -34,7 +34,6 @@ export interface SearchParams {
   mining: MiningMode;     // planetary method: require known signals, or known-or-unknown
   sort: "price" | "distance";
   limit: number;          // max systems returned
-  states: string[];       // controlling-faction state of the system (Boom, Bust, War...) ([] = any)
   reserve: string[];      // ring method: reserve level (Pristine, Major...) ([] = any)
 }
 
@@ -89,7 +88,6 @@ export interface ResultRow {
   powerState: string | null;
   contested: boolean;       // Unoccupied, with two or more powers competing for it (worked out: see contested.ts)
   powers: string[];         // every power with a presence in the system, controller first
-  factionState: string | null; // controlling faction's BGS state
   stations: StationRow[];   // best price first
   bodies: BodyRow[];        // landable planets matching the planetary filters
   miningBodies: number;     // planets with known mining signals
@@ -172,7 +170,6 @@ function metaWith(db: Database.Database) {
     commodities,
     ringMaterials,
     allRings,
-    states: (db.prepare("SELECT DISTINCT faction_state s FROM systems WHERE faction_state IS NOT NULL AND faction_state <> 'None' ORDER BY 1").all() as { s: string }[]).map((r) => r.s),
     reserves: RESERVE_LEVELS,
   };
 }
@@ -197,7 +194,7 @@ export function search(p: SearchParams, { budgetMs = getConfig().searchBudgetMs,
 }
 
 interface Candidate {
-  id64: number; name: string; cp: string | null; ps: string | null; pw: string | null; fst: string | null; cf: string | null;
+  id64: number; name: string; cp: string | null; ps: string | null; pw: string | null; cf: string | null;
   x: number; y: number; z: number;
   dist: number;
   bound: number; // highest price any station here could pay: ranks systems without reading markets
@@ -236,7 +233,6 @@ function searchWith(db: Database.Database, p: SearchParams, budgetMs: number, re
     sysWhere.push("s.power_state = 'Unoccupied'");
   }
   if (p.power) bind.power = p.power;
-  if (p.states.length) sysWhere.push(`s.faction_state IN (${inList("st", p.states, bind)})`);
 
   if (p.pad === "L") stWhere.push("t.has_large = 1");
   if (p.pad === "M") stWhere.push("(t.has_large = 1 OR t.has_medium = 1)");
@@ -250,7 +246,7 @@ function searchWith(db: Database.Database, p: SearchParams, budgetMs: number, re
   const order = p.sort === "price" ? "bound DESC, dist ASC" : "dist ASC";
   const candidates = db
     .prepare(
-      `SELECT s.id64, s.name, s.controlling_power cp, s.power_state ps, s.powers pw, s.faction_state fst, s.conflict cf, s.x, s.y, s.z,
+      `SELECT s.id64, s.name, s.controlling_power cp, s.power_state ps, s.powers pw, s.conflict cf, s.x, s.y, s.z,
               MAX(t.best_price) bound,
               sqrt((s.x-@x)*(s.x-@x)+(s.y-@y)*(s.y-@y)+(s.z-@z)*(s.z-@z)) dist
        FROM systems s JOIN stations t ON t.system_id64 = s.id64
@@ -305,7 +301,7 @@ function searchWith(db: Database.Database, p: SearchParams, budgetMs: number, re
 
     const sys: ResultRow = {
       id64: c.id64, name: c.name, distance: c.dist, controllingPower: c.cp, powerState: c.ps, contested: isContested(c.ps, c.cf),
-      powers: orderPowers(c.pw, c.cp), factionState: c.fst,
+      powers: orderPowers(c.pw, c.cp),
       stations, bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
     };
     if (sourcesNear) {
@@ -334,7 +330,7 @@ function sourceFinder(db: Database.Database, p: SearchParams): (from: { x: numbe
   const minedAt = (s: (typeof yours)[number]) => {
     if (!mined.has(s.id64)) {
       const row: ResultRow = {
-        id64: s.id64, name: s.name, distance: 0, controllingPower: s.cp, powerState: s.ps, contested: false, powers: orderPowers(s.pw, s.cp), factionState: null,
+        id64: s.id64, name: s.name, distance: 0, controllingPower: s.cp, powerState: s.ps, contested: false, powers: orderPowers(s.pw, s.cp),
         stations: [], bodies: [], miningBodies: 0, unknownBodies: 0, rings: [], sources: [],
       };
       mined.set(

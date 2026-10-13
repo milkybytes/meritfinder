@@ -26,21 +26,41 @@ const stn = (over: any = {}) => ({
 const sys = (over: any = {}) => ({ id64: 1, name: "S", coords: { x: 1, y: 2, z: 3 }, stations: [stn()], bodies: [], ...over });
 
 describe("createIngester", () => {
-  it("returns false and writes nothing for a system with no market", () => {
+  it("returns false and writes nothing for a system with no market and no Powerplay presence", () => {
     expect(ingest(sys({ stations: [] }))).toBe(false);
     expect(ingest(sys({ stations: [{ id: 2, name: "Dock", type: "Outpost" }] }))).toBe(false);
     expect(all("select * from systems")).toHaveLength(0);
+  });
+
+  it("does not take a construction depot for a market, even one that lists demand", () => {
+    const depot = stn({ id: 9, name: "Planetary Construction Site: X", type: "Planetary Construction Depot" });
+    expect(ingest(sys({ stations: [depot] }))).toBe(false);
+    expect(ingest(sys({ stations: [stn(), depot] }))).toBe(true);
+    expect(all("select id from stations")).toEqual([{ id: 1 }]);
+  });
+
+  it("keeps a Powerplay system with no market, with its rings and planets, so Acquire can mine there", () => {
+    const body = { type: "Planet", isLandable: true, bodyId: 4, name: "S 4", subType: "Rocky body", volcanismType: "No volcanism", gravity: 0.2, signals: { signals: { "$PlanetaryMiningLocation_Name;": 5 } } };
+    const ringed = { bodyId: 6, name: "S 6", reserveLevel: "Major", rings: [{ name: "S 6 A Ring", type: "Rocky", signals: { updateTime: RECENT, signals: { Monazite: 2 } } }] };
+    for (const power of [{ controllingPower: "Edmund Mahon", powerState: "Fortified" }, { powers: ["Edmund Mahon"] }]) {
+      db.exec("DELETE FROM ring_hotspots; DELETE FROM rings; DELETE FROM bodies; DELETE FROM systems");
+      expect(ingest(sys({ ...power, stations: [{ id: 2, name: "Dock", type: "Outpost" }], bodies: [body, ringed] }))).toBe(true);
+      expect(all("select name from systems")).toEqual([{ name: "S" }]);
+      expect(all("select count(*) n from stations")[0].n).toBe(0);
+      expect(all("select mining_signals from bodies")).toEqual([{ mining_signals: 5 }]);
+      expect(all("select ring_name, material, count from ring_hotspots")).toEqual([{ ring_name: "S 6 A Ring", material: "Monazite", count: 2 }]);
+    }
   });
 
   it("stores coordinates and Powerplay fields", () => {
     ingest(sys({
       controllingPower: "Edmund Mahon", powerState: "Fortified", powers: ["Edmund Mahon", "Aisling Duval"],
       powerStateControlProgress: 0.5, powerStateReinforcement: 12, powerStateUndermining: 3,
-      controllingFaction: { state: "Boom" }, powerConflictProgress: [{ power: "Aisling Duval", progress: 0.2 }],
+      powerConflictProgress: [{ power: "Aisling Duval", progress: 0.2 }],
     }));
     expect(all("select * from systems")[0]).toMatchObject({
       id64: 1, name: "S", x: 1, y: 2, z: 3, controlling_power: "Edmund Mahon", power_state: "Fortified",
-      control_progress: 0.5, reinforcement: 12, undermining: 3, faction_state: "Boom",
+      control_progress: 0.5, reinforcement: 12, undermining: 3,
     });
     expect(JSON.parse(all("select powers from systems")[0].powers)).toEqual(["Edmund Mahon", "Aisling Duval"]);
     expect(JSON.parse(all("select conflict from systems")[0].conflict)).toEqual([{ power: "Aisling Duval", progress: 0.2 }]);
@@ -156,3 +176,4 @@ describe("createIngester", () => {
     expect(all("select * from stations")).toHaveLength(1);
   });
 });
+

@@ -19,8 +19,8 @@ export function OtherStations({ stations }: { stations: StationRow[] }) {
         {stations.slice(1, 1 + MAX_OTHER_STATIONS).map((s) => (
           <li key={s.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-[0.15rem] border-l-2 border-line py-[0.45rem] pr-0 pl-[0.7rem] hover:border-accent">
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 font-medium text-foreground">
-                <StationIcon type={s.type} className="h-3.5 w-3.5 shrink-0 text-muted" />
+              <div className="flex items-baseline gap-1.5 font-medium text-foreground">
+                <StationIcon type={s.type} className="h-3.5 w-3.5 shrink-0 self-center text-muted" />
                 <span className="truncate" title={s.name}>
                   {s.name}
                 </span>

@@ -3,11 +3,11 @@
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 
 // Copies `text` to the clipboard; the icon turns into a tick for a moment.
-export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+export function CopyButton({ text, label = "Copy", className = "" }: { text: string; label?: string; className?: string }) {
   const { copy, done } = useCopyToClipboard();
 
   return (
-    <button type="button" className="inline-flex size-6 flex-none items-center justify-center text-muted hover:text-accent" onClick={() => copy(text)} title={done ? "Copied" : `${label} "${text}"`} aria-label={`${label} ${text}`}>
+    <button type="button" className={`inline-flex size-6 flex-none items-center justify-center text-muted hover:text-accent ${className}`.trim()} onClick={() => copy(text)} title={done ? "Copied" : `${label} "${text}"`} aria-label={`${label} ${text}`}>
       {done ? (
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--good)" }}>
           <path d="M3 8.5l3.2 3L13 4.5" />

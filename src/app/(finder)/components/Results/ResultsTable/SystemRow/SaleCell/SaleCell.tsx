@@ -23,11 +23,11 @@ export function SaleCell({ row }: { row: ResultRow }) {
         <span className="font-mono tabular-nums text-xs text-muted">{age(best.marketUpdated)} ago</span>
         {ageStale(best.marketUpdated) && <Badge color="var(--warn)">stale</Badge>}
       </div>
-      <div className="mt-2 flex items-center gap-1.5">
-        <StationIcon type={best.type} className="h-4 w-4 shrink-0 text" />
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <StationIcon type={best.type} className="h-4 w-4 shrink-0 self-center text" />
         <span className="min-w-0">{best.name}</span>
         <PadTag pad={best.pad} />
-        <div className="font-mono tabular-nums mt-0.5 text-xs text-muted">{best.distanceLs != null ? `${formatNumber(Math.round(best.distanceLs))} ls` : "? ls"}</div>
+        <div className="font-mono tabular-nums text-xs text-muted">{best.distanceLs != null ? `${formatNumber(Math.round(best.distanceLs))} ls` : "? ls"}</div>
       </div>
       <OtherStations stations={row.stations} />
     </td>

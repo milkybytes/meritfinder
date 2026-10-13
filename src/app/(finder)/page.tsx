@@ -24,7 +24,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Raw
   return (
     <div className="min-h-screen">
       <main className="mx-auto max-w-[88rem] px-5 py-8 sm:px-10">
-        <Header builtAt={info.builtAt} systemCount={info.systemCount} live={getLiveStatus()} />
+        <Header systemCount={info.systemCount} live={getLiveStatus()} />
         <PartialDatabaseBanner systemCount={info.systemCount} />
         {/* Keys are per search, and different for the form and the results: siblings may not share one (React then duplicates elements).
             The fields keep what was typed into them, so they only follow the address if the form is rebuilt: a new search in the

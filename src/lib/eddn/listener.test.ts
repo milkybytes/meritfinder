@@ -38,10 +38,37 @@ describe("runListener", () => {
       openDb: open,
     });
     expect(stats.received).toBe(4);
-    expect(stats.accepted).toEqual({ market: 1, system: 1, signals: 1 });
+    expect(stats.accepted).toMatchObject({ market: 1, system: 1, signals: 1 });
     expect(stats.skipped).toEqual({ schema: 1 });
     expect(stats.applied).toMatchObject({ markets: 1, systems: 1, signals: 1 });
     expect(stationRow(20).best_price).toBe(700_000);
+  });
+
+  it("does not let a system message without Powerplay information replace one that has it", async () => {
+    const jump = (over: object) => jumpToUnoccupiedSystem({ SystemAddress: 4999999999, timestamp: FRESH(), ...over });
+    await runListener({
+      source: feed(jump({}), jump({ timestamp: FRESH(5_000), Powers: undefined, PowerplayState: undefined, PowerplayConflictProgress: undefined })),
+      symbols: SYMBOLS,
+      openDb: open,
+    }).then((s) => expect(s.accepted.system).toBe(2));
+    const db = open();
+    try {
+      expect(db.prepare("SELECT power_state FROM systems WHERE id64 = 4999999999").get()).toMatchObject({ power_state: "Unoccupied" });
+    } finally {
+      db.close();
+    }
+  });
+
+  it("drops an update the database refuses and writes the rest of its batch", async () => {
+    const db = open();
+    db.exec("CREATE TRIGGER poison BEFORE INSERT ON market WHEN NEW.sell_price = 666 BEGIN SELECT RAISE(ABORT, 'poison'); END");
+    db.close();
+    const log = vi.fn();
+    const stats = await runListener({ symbols: SYMBOLS, source: feed(market(20, FRESH(-1000), 666), market(30, FRESH(-500), 4_321)), openDb: open, log });
+    expect(stats.rejected).toBe(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("dropped a market update"));
+    expect(stationRow(30).best_price).toBe(4_321); // written, though it was in the same batch
+    expect(stationRow(20).best_price).not.toBe(666);
   });
 
   it("copes with garbage: bytes that are not compressed, text that is not JSON, and a compression bomb", async () => {
@@ -80,7 +107,7 @@ describe("runListener", () => {
       symbols: SYMBOLS,
       source: feed(market(20, FRESH(), 5_000), market(30, FRESH(), 6_000)),
       openDb: () => {
-        if (++attempts === 1) throw new Error("database is locked");
+        if (++attempts <= 2) throw new Error("database is locked"); // the first is the heartbeat on the first message, the second the first write
         return open();
       },
       maxBatch: 1, // the first message fails to write; the second flush retries both
@@ -147,4 +174,28 @@ describe("runListener: the heartbeat", () => {
     }
   });
 
+});
+
+describe("runListener: the report", () => {
+  it("hands over the running totals on its interval, and stops when the listener does", async () => {
+    vi.useFakeTimers();
+    try {
+      const seen: number[] = [];
+      let release: () => void = () => {};
+      const gate = new Promise<void>((r) => (release = r));
+      async function* oneThenQuiet() {
+        yield pack(market(20, FRESH(), 7_000));
+        await gate;
+      }
+      const done = runListener({ symbols: SYMBOLS, source: oneThenQuiet(), openDb: open, flushMs: 1000, reportMs: 5000, report: (s) => seen.push(s.received) });
+      await vi.advanceTimersByTimeAsync(11_000);
+      expect(seen).toEqual([1, 1]);
+      release();
+      await done;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(seen).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

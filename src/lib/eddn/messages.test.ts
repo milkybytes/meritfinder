@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bodySignalsFound, fssBodySignals, jumpToUnoccupiedSystem, locationInFortifiedSystem, marketMessage, SYMBOLS } from "../../test/eddn-messages";
+import { bodySignalsFound, docked, fssBodySignals, jumpToUnoccupiedSystem, locationInFortifiedSystem, marketMessage, ringScan, scanOfLandablePlanet, scanOfRingedPlanet, SYMBOLS } from "../../test/eddn-messages";
 
 import { parseMessage, type EddnUpdate } from "./messages";
 
@@ -51,6 +51,16 @@ describe("market messages", () => {
 
 });
 
+describe("a market that cannot be named", () => {
+  it("is not read at all without commodity names, so it cannot empty a real market", () => {
+    expect(parseMessage(marketMessage(), NOW, new Map())).toEqual({ skip: "no-names" });
+  });
+
+  it("is not read when everything it buys is unknown, which is not the same as buying nothing", () => {
+    expect(skipped(marketMessage({ commodities: [{ name: "notarealthing", sellPrice: 100, demand: 5 }] }))).toBe("no-names");
+  });
+});
+
 describe("when a message was sent", () => {
   it("rejects one from the future, but allows for slightly different clocks", () => {
     expect(skipped(marketMessage({ timestamp: "2026-10-09T09:10:00Z" }))).toBe("future");
@@ -61,8 +71,9 @@ describe("when a message was sent", () => {
 
 describe("Powerplay state from the journal", () => {
   it("takes the full state from a system the player is in", () => {
-    expect(update(locationInFortifiedSystem())).toEqual({
+    expect(update(locationInFortifiedSystem())).toMatchObject({
       kind: "system",
+      powerplay: true,
       id64: 1457973629642,
       at: "2026-10-08T09:06:49Z",
       controllingPower: "Pranav Antal",
@@ -72,7 +83,6 @@ describe("Powerplay state from the journal", () => {
       reinforcement: 0,
       undermining: 1793,
       conflict: null,
-      factionState: "Expansion",
     });
   });
 
@@ -82,22 +92,82 @@ describe("Powerplay state from the journal", () => {
       controllingPower: null,
       powerState: "Unoccupied",
       conflict: [{ power: "Edmund Mahon", progress: 0.000067 }, { power: "Yuri Grom", progress: 0.001375 }],
-      factionState: "None", // the faction listed no state
     });
   });
 
   it("reads jumps, locations and carrier jumps alike, and nothing else", () => {
     expect(update(jumpToUnoccupiedSystem({ event: "CarrierJump" }))).toMatchObject({ kind: "system" });
-    expect(skipped(jumpToUnoccupiedSystem({ event: "Docked" }))).toBe("event");
-    expect(skipped(jumpToUnoccupiedSystem({ event: "Scan" }))).toBe("event");
+    expect(skipped(jumpToUnoccupiedSystem({ event: "FSSDiscoveryScan" }))).toBe("event");
+    expect(skipped(jumpToUnoccupiedSystem({ event: "StartJump" }))).toBe("event");
   });
 
 });
 
+describe("a system with no Powerplay presence", () => {
+  it("is added when someone lives there, but its state is left alone", () => {
+    const u = update(jumpToUnoccupiedSystem({ Powers: undefined, PowerplayState: undefined, PowerplayConflictProgress: undefined }));
+    expect(u).toMatchObject({ kind: "system", powerplay: false, name: "Alrai Sector OS-T b3-3", pos: [7.84375, 34.71875, 86.46875] });
+  });
+
+  it("is skipped when nobody lives there", () => {
+    expect(skipped(jumpToUnoccupiedSystem({ Powers: undefined, PowerplayState: undefined, PowerplayConflictProgress: undefined, Population: 0 }))).toBe("no-powerplay");
+  });
+});
+
+describe("stations, planets and rings", () => {
+  it("reads a docking: where the station is, what it is, and its pads", () => {
+    expect(update(docked())).toMatchObject({
+      kind: "station", marketId: 3225348096, id64: 4999999999, systemName: "Ngurii", pos: [12.5, -40.25, 900.75],
+      name: "Cheranovsky City", type: "Coriolis Starport", distanceLs: 1234.5, large: true, medium: true,
+    });
+    expect(update(docked({ StationType: "Outpost", LandingPads: { Small: 2, Medium: 2, Large: 0 } }))).toMatchObject({ type: "Outpost", large: false, medium: true });
+    expect(update(docked({ StationType: "Dodec" }))).toMatchObject({ type: "Dodec Starport" });
+    expect(update(docked({ StationType: "Bernal" }))).toMatchObject({ type: "Ocellus Starport" });
+    expect(skipped(docked({ StationName: "Safe\u202eelbaT" }))).toBe("malformed"); // a bidirectional override
+    expect(skipped(docked({ StationName: "Line\nbreak" }))).toBe("malformed");
+    expect(update(docked({ LandingPads: undefined }))).toMatchObject({ large: null, medium: null }); // not said: not the same as none
+    expect(skipped(docked({ StationName: "$EXT_PANEL_ColonisationShip; Liman Enterprise" }))).toBe("unlocalised");
+    expect(skipped(docked({ StationType: "PlanetaryConstructionDepot" }))).toBe("construction-site");
+    expect(skipped(docked({ StationType: "SpaceConstructionDepot" }))).toBe("construction-site");
+    expect(skipped(docked({ StationType: "Outpost", StationServices: ["dock", "commodities", "colonisationcontribution"] }))).toBe("construction-site");
+    expect(update(docked({ StationType: "Outpost", StationServices: ["dock", "commodities", "registeringcolonisation"] }))).toMatchObject({ kind: "station" }); // a normal station, just named like one
+    expect(skipped(docked({ StationType: "FleetCarrier" }))).toBe("carrier");
+    expect(skipped(docked({ StarPos: [1e9, 0, 0] }))).toBe("malformed"); // not a place in the galaxy
+  });
+
+  it("reads a scanned planet's rings with their type and reserve", () => {
+    expect(update(scanOfRingedPlanet())).toMatchObject({
+      kind: "body", id64: 4999999999, bodyId: 22, landable: false, reserve: "Pristine",
+      rings: [{ name: "Ngurii 5 A Ring", type: "Rocky" }, { name: "Ngurii 5 B Ring", type: "Metal Rich" }],
+    });
+  });
+
+  it("reads a landable planet in the dump's own words: type, volcanism and gravity in g", () => {
+    expect(update(scanOfLandablePlanet())).toMatchObject({
+      kind: "body", landable: true, subtype: "High metal content world", volcanism: "Minor Silicate Vapour Geysers", gravity: 0.5, bodyClass: "high-metal-content",
+    });
+  });
+
+  it("skips what cannot be mined: stars, and planets that are neither landable nor ringed", () => {
+    expect(skipped(scanOfRingedPlanet({ PlanetClass: undefined }))).toBe("not-a-planet");
+    expect(skipped(scanOfRingedPlanet({ Rings: undefined }))).toBe("nothing-to-mine");
+    expect(skipped(scanOfLandablePlanet({ Landable: false }))).toBe("nothing-to-mine");
+    expect(skipped(scanOfLandablePlanet({ PlanetClass: "Gas giant with water based life" }))).toBe("nothing-to-mine");
+  });
+
+  it("reads a ring's hotspots, by their market names, and a body's signals as before", () => {
+    expect(update(ringScan())).toMatchObject({
+      kind: "hotspots", id64: 4999999999, ringName: "Ngurii 5 A Ring",
+      hotspots: [{ material: "Serendibite", count: 2 }, { material: "Platinum", count: 3 }, { material: "Monazite", count: 1 }],
+    });
+    expect(update(bodySignalsFound())).toMatchObject({ kind: "signals" }); // a planet, not a ring
+  });
+});
+
 describe("planetary mining signals", () => {
   it("reads the count from a first scan and from a detailed surface scan", () => {
-    expect(update(fssBodySignals())).toEqual({ kind: "signals", id64: 22970021858168, bodyId: 27, miningSignals: 8 });
-    expect(update(bodySignalsFound())).toEqual({ kind: "signals", id64: 9465168405905, bodyId: 14, miningSignals: 14 });
+    expect(update(fssBodySignals())).toMatchObject({ kind: "signals", id64: 22970021858168, bodyId: 27, miningSignals: 8 });
+    expect(update(bodySignalsFound())).toMatchObject({ kind: "signals", id64: 9465168405905, bodyId: 14, miningSignals: 14 });
   });
 
   it("learns nothing from a body whose signals are of other kinds: unknown stays unknown", () => {

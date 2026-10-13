@@ -6,7 +6,7 @@ describe("parseParams", () => {
     expect(parseParams({})).toEqual({
       ref: "", range: 50, power: "", goal: "undermine", target: [], commodity: [], minPrice: 0, minDemand: 0,
       pad: "L", maxStationLs: 0, maxAgeDays: 7, method: "any", ringTypes: [], reserve: [], mining: "possible",
-      material: [], states: [], sort: "price", limit: 25,
+      material: [], sort: "price", limit: 25,
     });
   });
 
@@ -31,7 +31,6 @@ describe("parseParams", () => {
     expect(parseParams({ commodity: "Monazite" }).commodity).toEqual(["Monazite"]);
     expect(parseParams({ commodity: ["Monazite", "Gold"] }).commodity).toEqual(["Monazite", "Gold"]);
     expect(parseParams({ commodity: ["", "Gold"] }).commodity).toEqual(["Gold"]);
-    expect(parseParams({ state: ["Boom", "Bust"] }).states).toEqual(["Boom", "Bust"]);
     expect(parseParams({ ringType: "Icy", reserve: "Pristine", target: "Yuri Grom", material: ["Tritium"] })).toMatchObject({
       ringTypes: ["Icy"], reserve: ["Pristine"], target: ["Yuri Grom"], material: ["Tritium"],
     });

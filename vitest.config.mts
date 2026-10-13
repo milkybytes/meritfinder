@@ -7,7 +7,7 @@ import { defineConfig, type Plugin } from "vitest/config";
 const images: Plugin = {
   name: "image-imports",
   enforce: "pre",
-  load: (id) => (/\.webp$/.test(id) ? `export default { src: ${JSON.stringify("/" + path.basename(id))}, width: 64, height: 64 };` : null),
+  load: (id) => (/\.(webp|svg)$/.test(id) ? `export default { src: ${JSON.stringify("/" + path.basename(id))}, width: 64, height: 64 };` : null),
 };
 
 export default defineConfig({
